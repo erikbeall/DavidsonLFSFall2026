@@ -20,7 +20,7 @@ brew install qemu
 
 # 2. create pair of qemu disks (60GB for build, 20GB for target are good starting points, depending on what you want, e.g. X windows or not, embedded, etc)
 #    use the qemu copy-on-write format (qcow2) for snapshot/recovery options
-qemu-img create -f qcow2 build-host.qcow2 60G
+qemu-img create -f qcow2 build-host.qcow2 30G
 qemu-img create -f qcow2 lfs-target.qcow2 20G
 
 # 3. copy UEFI baseline for aarch64 systems, note this is one major distinction from Intel systems (and RISC-V)
@@ -64,8 +64,14 @@ qemu-system-aarch64 \
   -device virtio-net-pci,netdev=n0
 
 # pick a username and password - this will be used every time you log in and for superuser permissions
+# enable openssh server, this will let you log in via additional terminals (qemu tag with hostfwd for forwarding a port locally to the ssh port on the ubuntu install)
 # everything else can be default, including the warning about erasing your disk - this is limited to the disk you mounted in qemu
 # pay attention to the install options however, these delineate the few required inputs for as-close-to-automated installation as is possible today
+# watch the "full log" when its installing - these are similar to what you'll be doing for LFS
+# note, you are sharing your network to this virtual machine with the qemu tag "-device virtio-net-pci,netdev=n0"
+# eventually (half an hour or more) you will get an option to reboot within the virtual machine, go ahead, your system is installed
+# you can then shutdown with "sudo shutdown -h now", or you can explore the system and disks available to you
+# Question: what disk drives are available to you? What (generally speaking) is on them?
 
 # 6. once install is done and you've shut down the qemu emulator, start it again with the build host and the LFS disk target (can use nographics if you like)
 qemu-system-aarch64 \
