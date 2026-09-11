@@ -24,12 +24,14 @@ qemu-img create -f qcow2 build-host.qcow2 60G
 qemu-img create -f qcow2 lfs-target.qcow2 20G
 
 # 3. copy UEFI baseline for aarch64 systems, note this is one major distinction from Intel systems (and RISC-V)
-cp /opt/homebrew/share/qemu/edk2-aarch64-code.fd build-vars.fd
+cp /opt/homebrew/share/qemu/edk2-aarch64-code.fd build-host-vars.fd
 
 # 4. download appropriate ubuntu 26.04 image - specific to arm64
-wget https://ubuntu.com/download/desktop/thank-you?version=26.04&architecture=arm64&lts=true
+Navigate to: https://ubuntu.com/download/desktop/thank-you?version=26.04.1&architecture=arm64&lts=true
+OR (direct download)
+wget https://cdimage.ubuntu.com/releases/26.04.1/release/ubuntu-26.04.1-live-server-arm64.iso
 # very optional and not recommended due to slowness - you CAN run a intel-based arch on an ARM CPU but it will be slow
-# For Win: https://ubuntu.com/download/desktop/thank-you?version=26.04&architecture=amd64&lts=true
+# For Win: https://ubuntu.com/download/desktop/thank-you?version=26.04.1&architecture=amd64&lts=true
 
 # 5. install this distribution on the build-host disk
 # note, many of the incantations are specific to architecture (aarch64 vs x86_64), referring to drivers built for those platforms
@@ -42,7 +44,7 @@ QDRIVE1="-drive file=build-host.qcow2,if=virtio,format=qcow2"
 QDRIVE2="-drive file=lfs-target.qcow2,if=virtio,format=qcow2"
 
 # mount distribution's iso directly (will boot from this)
-QDRIVEINSTALL="-drive file=ubuntu-26.04-live-server-arm64.iso,if=virtio,format=raw,readonly=on"
+QDRIVEINSTALL="-drive file=ubuntu-26.04.1-live-server-arm64.iso,if=virtio,format=raw,readonly=on"
 
 # EFI needs a pristine disk for install and a readwrite disk to emulate what happens on a laptop with full UEFI support
 QEFI_RO="-drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd"
@@ -61,7 +63,9 @@ qemu-system-aarch64 \
   $QDISPLAY \
   -device virtio-net-pci,netdev=n0
 
-# make sure to select a username and password - this will be used every time you log in
+# pick a username and password - this will be used every time you log in and for superuser permissions
+# everything else can be default, including the warning about erasing your disk - this is limited to the disk you mounted in qemu
+# pay attention to the install options however, these delineate the few required inputs for as-close-to-automated installation as is possible today
 
 # 6. once install is done and you've shut down the qemu emulator, start it again with the build host and the LFS disk target (can use nographics if you like)
 qemu-system-aarch64 \
