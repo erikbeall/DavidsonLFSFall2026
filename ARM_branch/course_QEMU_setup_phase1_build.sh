@@ -6,9 +6,12 @@ exit 0
 
 # Chapter 5 - cross binutils, gcc, glibc, libstdc++
 # phase 1 is performed with the ubuntu compiler and libraries - we must first build the tools for cross-compilation
+# CRITICAL NOTE FOR NON-BASH SYSTEMS:
 # move /bin/sh to link to /bin/bash (this is temporary but needed for likely bashisms in the build scripts)
 # read up on bashisms - if we were very lucky, each and every makefile would reference /bin/bash, but that is not too likely...
 # its a good habit to learn bashisms so when you write shell scripts they are much more likely to be portable (limit to only POSIX shell)
+# in fact, GNU autoconf (used by 90% of the core packages) generates a configure shell script with $!/bin/sh at the top - question for
+# debian maintainers, how would you deal with this?
 sudo rm /bin/sh
 sudo ln -s /bin/bash /bin/sh
 

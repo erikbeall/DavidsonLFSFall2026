@@ -4,6 +4,14 @@ echo "this is a "pseudo" shell script, a shell-like documentation you cannot dir
 echo "Reading this file shows copy-pasteable commands, intended for aiding progress but only if you are paying attention"
 exit 0
 
+# reminder to start with phase2 lfs (phase1 host isn't changed here so I didn't make a new phase, 
+# you could of course make an overlap or snapshot inside the qcow2 image in case of accidental corruption, and its not a bad idea)
+QDRIVE2="-drive file=lfs-target-phase2.qcow2,if=virtio,format=qcow2"
+QDRIVE1="-drive file=build-host-phase1.qcow2,if=virtio,format=qcow2"
+QEFI_RO="-drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd"
+QEFI_RW="-drive if=pflash,format=raw,file=build-host-vars.fd"
+qemu-system-aarch64   -M virt -accel hvf -cpu host -smp 4 -m 8192   $QEFI_RO  $QEFI_RW $QDRIVE1 $QDRIVE2  -device qemu-xhci -device usb-kbd -device usb-tablet -netdev user,id=n0,hostfwd=tcp::2222-:22 -nographic -device virtio-net-pci,netdev=n0
+
 # Chapter 6
 # phase 2 is performed with the cross-compile tools
 # move /bin/sh to link to /bin/bash (this is temporary but needed for likely bashisms 
@@ -55,6 +63,9 @@ ln -sv libncursesw.so $LFS/usr/lib/libncurses.so
 sed -e 's/^#if.*XOPEN.*$/#if 1/' \
     -i $LFS/usr/include/curses.h
 
+# WORK: what did this sed command do? Hint, diff $LFS/usr/include/curses.h include/curses.h
+# or just read the LFS manual...
+
 cd $LFS/sources
 tar xfz bash-5.3.tar.gz
 cd bash-5.3
@@ -68,8 +79,8 @@ make DESTDIR=$LFS install
 ln -sv bash $LFS/bin/sh
 
 cd $LFS/sources
-tar xvf coreutils-9.7.tar.xz
-cd coreutils-9.7
+tar xvf coreutils-9.10.tar.xz
+cd coreutils-9.10
 # patches are not needed at this time (i8n and character boundary recognition patch for POSIX compliance)
 ./configure --prefix=/usr                     \
             --host=$LFS_TGT                   \
@@ -95,9 +106,10 @@ make
 make DESTDIR=$LFS install
 
 cd $LFS/sources
-tar xf file-5.46.tar.xz
+tar xvf file-5.46.tar.xz
 cd file-5.46
-# make temporary copy of file (needed for signature generation
+# make temporary copy of file (needed for signature generation)
+# WORK: what is this "signature" and why would we need a temporary copy of file to complete a list of signatures?
 mkdir build
 pushd build
   ../configure --disable-bzlib      \
@@ -113,7 +125,7 @@ rm -v $LFS/usr/lib/libmagic.la
 
 cd $LFS/sources
 tar xf findutils-4.10.0.tar.xz
-cd  tar xf findutils-4.10.0
+cd findutils-4.10.0
 ./configure --prefix=/usr                   \
             --localstatedir=/var/lib/locate \
             --host=$LFS_TGT                 \
@@ -123,6 +135,7 @@ make; make DESTDIR=$LFS install
 cd $LFS/sources
 tar xf gawk-5.3.2.tar.xz
 cd gawk-5.3.2
+# remove extras
 sed -i 's/extras//' Makefile.in
 ./configure --prefix=/usr   \
             --host=$LFS_TGT \
@@ -189,9 +202,14 @@ rm -v $LFS/usr/lib/liblzma.la
 ### SECOND PASS ###
 # binutils rebuild
 cd $LFS/sources
+# WORK: should you do: rm -rf binutils-2.45
 tar xf binutils-2.45.tar.xz
 cd binutils-2.45
 sed '6031s/$add_dir//' -i ltmain.sh
+# remove the old build subdir - note nothing was changed outside of the build dir
+# however, odd things can happen with tools getting activated within the build 
+# subdir that modify things outside of it, learn its better to be safe than sorry
+rm -rf build
 mkdir build; cd build
 ../configure                   \
     --prefix=/usr              \
@@ -208,6 +226,8 @@ make; make DESTDIR=$LFS install
 rm -v $LFS/usr/lib/lib{bfd,ctf,ctf-nobfd,opcodes,sframe}.{a,la}
 
 cd $LFS/sources
+# refresh the gcc source tree from tarball
+rm -rf gcc-15.2.0
 tar xf gcc-15.2.0.tar.xz
 cd gcc-15.2.0
 tar -xf ../mpfr-4.2.2.tar.xz
@@ -246,4 +266,11 @@ ln -sv gcc $LFS/usr/bin/cc
 exit
 sudo rm /bin/sh
 sudo ln -s /bin/dash /bin/sh
+
+# shutdown and make a new overlay
+qemu-img create -f qcow2 -b lfs-target-phase2.qcow2 -F qcow2 lfs-target-phase3.qcow2
+QDRIVE2="-drive file=lfs-target-phase3.qcow2,if=virtio,format=qcow2"
+
+# boot with the new overlays
+qemu-system-aarch64   -M virt -accel hvf -cpu host -smp 4 -m 8192   $QEFI_RO  $QEFI_RW $QDRIVE1 $QDRIVE2  -device qemu-xhci -device usb-kbd -device usb-tablet -netdev user,id=n0,hostfwd=tcp::2222-:22   $QNODISP  -device virtio-net-pci,netdev=n0
 
