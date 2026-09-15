@@ -88,13 +88,22 @@ qemu-system-aarch64 \
 # once booted, you can also log in via ssh localhost -p 2222
 ssh -l $INSTALLUSER localhost -p 2222
 # if you are in a trusted environment, create an ssh key on your computer (not in qemu) and copy its pubkey 
+ssh-keygen -t ed25519 -f ./id_ed25519_lfs
 # to the .ssh/authorized_keys file inside your logged-in qemu build host
 # ensure permissions are correct inside the emulated build host:
 chmod go-rw .ssh/authorized_keys
+# then, test ssh (anyone with the non .pub file can get access via ssh)
+ssh -i ./id_ed25519_lfs -l $INSTALLUSER localhost -p 2222
 
 # 7. Done on the host side, the remaining work all happens inside qemu, I suggest writing aliases/shell functions to help you start up qemu and work with it 
 # flexibly from outside the emulated running build or lfs system, here's a few example aliases:
 alias lt="ls -ltr | tail"
 alias ll="ls -l"
 alias sslfs="ssh -p 2222 nano@localhost"
+
+# 8. shutdown the VM and take an overlay - work in snapshots whenever there is any chance of system changes
+qemu-img create -f qcow2 -b build-host.qcow2 -F qcow2 build-host-phase0.qcow2
+
+# 9. boot with this overlay (alternatively, could work in a "snapshot", which is contained in the same qcow2 image)
+QDRIVE1="-drive file=build-host-phase0.qcow2,if=virtio,format=qcow2"
 

@@ -6,7 +6,8 @@ exit 0
 
 # Chapter 6
 # phase 2 is performed with the cross-compile tools
-# move /bin/sh to link to /bin/bash (this is temporary but needed for likely bashisms in the build scripts)
+# move /bin/sh to link to /bin/bash (this is temporary but needed for likely bashisms 
+# in the build scripts until we get to the chroot phase where we're running off binaries in the lfs-target)
 sudo rm /bin/sh
 sudo ln -s /bin/bash /bin/sh
 
