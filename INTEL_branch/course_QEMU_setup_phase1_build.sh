@@ -59,7 +59,7 @@ tar -xf ../mpfr-4.2.2.tar.xz
 mv -v mpfr-4.2.2 mpfr
 tar -xf ../gmp-6.3.0.tar.xz
 mv -v gmp-6.3.0 gmp
-tar -xf ../mpc-1.4.1.tar.gz
+tar -xf ../mpc-1.4.1.tar.xz
 mv -v mpc-1.4.1 mpc
 
 # change the base name for x86_64 installs
@@ -95,8 +95,9 @@ cd build
 
 make
 make install
-cd ..
 
+# cd back into the main source dir
+cd ..
 # everything you compile will need certain headers, at this point, one will need to be modified
 cat gcc/limitx.h gcc/glimits.h gcc/limity.h > `dirname $($LFS_TGT-gcc -print-libgcc-file-name)`/include/limits.h
 
@@ -106,7 +107,7 @@ cat gcc/limitx.h gcc/glimits.h gcc/limity.h > `dirname $($LFS_TGT-gcc -print-lib
 cd $LFS/sources
 # version may differ - look closely - copy/paste will fail...
 tar xf linux-7.1.8.tar.xz
-cd tar xf linux-7.1.8
+cd linux-7.1.8
 make mrproper
 make headers
 
