@@ -10,7 +10,18 @@ exit 0
 # these tools will be inovked within a chroot'ed environment (change-root), so the tools will behave as if they are in their own system
 # the kernel under the hood is still that of the base build operating system (e.g. Ubuntu-26.04)
 
+
+# reminder, start with phase3 overlay
+QDRIVE2="-drive file=lfs-target-phase3.qcow2,if=virtio,format=qcow2"
+QDRIVE1="-drive file=build-host-phase1.qcow2,if=virtio,format=qcow2"
+QEFI_RO="-drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd"
+QEFI_RW="-drive if=pflash,format=raw,file=build-host-vars.fd"
+qemu-system-aarch64   -M virt -accel hvf -cpu host -smp 4 -m 8192   $QEFI_RO  $QEFI_RW $QDRIVE1 $QDRIVE2  -device qemu-xhci -device usb-kbd -device usb-tablet -netdev user,id=n0,hostfwd=tcp::2222-:22 -nographic -device virtio-net-pci,netdev=n0
+
+# now, you must "become superuser"
 sudo su
+
+# set the one ENV variable needed below (change if you decided to mount somewhere else)
 export LFS=/mnt/lfs
 # change ownership from lfs to root - lfs only exists on the build host
 chown -R --from lfs root:root $LFS
@@ -40,14 +51,14 @@ chroot "$LFS" /usr/bin/env -i   \
     TESTSUITEFLAGS="-j$(nproc)" \
     /bin/bash --login
 
-# notice the command line says "I have no name", that is because the PS1 (this is the 
+# WORK: notice the command line says "I have no name", that is because the PS1 (this is the 
 # commandline prompt) has \u - this tells bash to get the name for the current uid from /etc/passwd, which does not yet exist
 # play around, look inside the /proc - its the same as the host so there are many processes - almost all (except the current bash shell) are host processes
 # for example, here is the ENV for the current bash shell inside the chroot:
 cat proc/$$/environ
 # see what libs are linked in the current bash - note these are all inside the chrooted environment
 cat /proc/$$/maps
-# you should see several libraries that DO NOT EXIST in the host, e.g. /usr/lib/libc.so.6 (check in a different shell on the host)
+# you should see several libraries that exist in chroot that DO NOT EXIST in the host, e.g. /usr/lib/libc.so.6 (check in non-chrooted/normal shell on the host)
 # some however are in both host and chrooted env, e.g. /usr/lib/ld-linux-aarch64.so.1
 # this is merely a matter of how the distribution decided to package things - LFS made their own choices, 
 # and by the conclusion of this project, you should be able to as well (if you ever need to)
@@ -166,7 +177,7 @@ sh Configure -des                                         \
              -D vendorarch=/usr/lib/perl5/5.42/vendor_perl
 make; make install
 
-PKGNAME="Python-3.13.7"
+PKGNAME="Python-3.14.0"
 cd /sources
 tar xf $PKGNAME.tar.xz; cd $PKGNAME
 ./configure --prefix=/usr       \
@@ -211,12 +222,12 @@ rm -rf /tools
 exit
 
 # note, if you will be rebooting, unmount the tmpfs/sysfs/procfs - note again, this must be run as root
-echo "
 mountpoint -q $LFS/dev/shm && umount $LFS/dev/shm
 umount $LFS/dev/pts
-umount $LFS/{sys,proc,run,dev}"
+umount $LFS/{sys,proc,run,dev}
+
 # if you then come back to this stage again later, remount and chroot
-echo "mount -v --bind /dev $LFS/dev
+mount -v --bind /dev $LFS/dev
 mount -vt devpts devpts -o gid=5,mode=0620 $LFS/dev/pts
 mount -vt proc proc $LFS/proc
 mount -vt sysfs sysfs $LFS/sys
@@ -225,28 +236,27 @@ if [ -h $LFS/dev/shm ]; then
   install -v -d -m 1777 $LFS$(realpath /dev/shm)
 else
   mount -vt tmpfs -o nosuid,nodev tmpfs $LFS/dev/shm
-fi"
+fi
 # and chroot
-echo "chroot "$LFS" /usr/bin/env -i   \
+chroot "$LFS" /usr/bin/env -i   \
     HOME=/root                  \
     TERM="$TERM"                \
     PS1='(lfs chroot) \u:\w\$ ' \
     PATH=/usr/bin:/usr/sbin     \
     MAKEFLAGS="-j$(nproc)"      \
     TESTSUITEFLAGS="-j$(nproc)" \
-    /bin/bash --login"
+    /bin/bash --login
 
 # shutdown and snapshot by creating an overlay we will then work upon (so next qemu run must reference the overlay, which also loads the build-host and lfs-target)
 # note, the build-host is identical past phase0 (phase0 is setup of lfs dir and user prep)
-qemu-img create -f qcow2 -b lfs-target.qcow2 -F qcow2 lfs-target-phase3.qcow2
-qemu-img create -f qcow2 -b build-host.qcow2 -F qcow2 build-host-phase3.qcow2
+qemu-img create -f qcow2 -b lfs-target-phase3.qcow2 -F qcow2 lfs-target-phase4.qcow2
+qemu-img create -f qcow2 -b build-host-phase1.qcow2 -F qcow2 build-host-phase4.qcow2
 
 # NOTE: any changes in the previous layer (e.g. build-host.qcow2) DO NOT get propagated properly, and could lead to conflicts
 # so, alternatively, flatten an overlay (and the base+previous overlay images linked by reference in the header) to a distributable single file
 qemu-img convert -O qcow2 lfs-target-phase3.qcow2 golden-lfs-target-phase3.qcow2
 
 # so either way, make sure you are referencing the correct layer
-# QDRIVE1="-drive file=build-host-phase3.qcow2,if=virtio,format=qcow2"
-# QDRIVE2="-drive file=lfs-target-phase3.qcow2,if=virtio,format=qcow2"
-# qemu-system-aarch64   -M virt -accel hvf -cpu host -smp 4 -m 8192   $QEFI_RO   $QEFI_RW   $QDRIVE1   $QDRIVE2   -device qemu-xhci -device usb-kbd -device usb-tablet   -netdev user,id=n0,hostfwd=tcp::2222-:22   $QNODISP   -device virtio-net-pci,netdev=n0
+QDRIVE1="-drive file=build-host-phase4.qcow2,if=virtio,format=qcow2"
+QDRIVE2="-drive file=lfs-target-phase4.qcow2,if=virtio,format=qcow2"
 
