@@ -66,13 +66,12 @@ QEFI_RW="-drive if=pflash,format=raw,file=OVMF_VARS-build-host.fd"
 
 # Differences bw Mac aarch64:
 # whpx instead of hvf
-# --enable-kvm
 # virtio-net-pci instead of virtio-net-device on aarch64
 # -M q35 and -accel kvm (note, if working in a qemu on MSYS2 or bare windows, use -accel whpx)
 # OVMF_<>_4M.fd instead of edk-aarch64
 
 # boot the system with the install disk and the build host disk - enable graphics and follow the instructions to install on that disk
-qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 --enable-kvm \
+qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 \
   $QEFI_RO \
   $QEFI_RW \
   $QDRIVE1 \
@@ -92,7 +91,7 @@ qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 --enable-kvm \
 # WORK: what disk drives are available to you? What (generally speaking) is on them?
 
 # 6. once install is done and you've shut down the qemu emulator, start it again with the build host and the LFS disk target (can use nographics if you like)
-qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 --enable-kvm \
+qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 \
   $QEFI_RO \
   $QEFI_RW \
   $QDRIVE1 \

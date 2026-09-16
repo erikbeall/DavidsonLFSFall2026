@@ -10,7 +10,7 @@ QDRIVE2="-drive file=lfs-target-phase2.qcow2,if=virtio,format=qcow2"
 QDRIVE1="-drive file=build-host-phase1.qcow2,if=virtio,format=qcow2"
 QEFI_RO="-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd"
 QEFI_RW="-drive if=pflash,format=raw,file=OVMF_VARS-build-host.fd"
-qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 --enable-kvm \
+qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 \
   $QEFI_RO $QEFI_RW $QDRIVE1 $QDRIVE2 \
   -device qemu-xhci -device usb-kbd -device usb-tablet \
   -netdev user,id=n0,hostfwd=tcp::2222-:22 \
@@ -26,10 +26,16 @@ sudo ln -s /bin/bash /bin/sh
 # switch to lfs user
 su - lfs
 
+# prepare gnulib to find functions new in 2.44
+cat > $LFS/usr/share/config.site << EOF
+ac_cv_func_posix_spawn_file_actions_addchdir=yes
+ac_cv_func_posix_spawn_file_actions_addfchdir=yes
+EOF
+
 # build m4
 cd $LFS/sources
-tar xf m4-1.4.20.tar.xz
-cd m4-1.4.20
+tar xf m4-1.4.21.tar.xz
+cd m4-1.4.21
 ./configure --prefix=/usr   \
             --host=$LFS_TGT \
             --build=$(build-aux/config.guess)
@@ -38,8 +44,8 @@ make
 make DESTDIR=$LFS install
 
 cd $LFS/sources
-tar xfz ncurses-6.5-20250809.tgz
-cd ncurses-6.5-20250809
+tar xfz ncurses-6.6.tgz
+cd ncurses-6.6
 # first build tic tool
 mkdir build
 pushd build
@@ -64,8 +70,7 @@ popd
 make
 make DESTDIR=$LFS install
 ln -sv libncursesw.so $LFS/usr/lib/libncurses.so
-sed -e 's/^#if.*XOPEN.*$/#if 1/' \
-    -i $LFS/usr/include/curses.h
+sed -e 's/^#if.*XOPEN.*$/#if 1/' -i $LFS/usr/include/curses.h
 
 # WORK: what did this sed command do? Hint, diff $LFS/usr/include/curses.h include/curses.h
 # or just read the LFS manual...
@@ -76,21 +81,21 @@ cd bash-5.3
 ./configure --prefix=/usr                      \
             --build=$(sh support/config.guess) \
             --host=$LFS_TGT                    \
-            --without-bash-malloc
+            --without-bash-malloc              \
+            --docdir=/usr/share/doc/bash-5.3
 
 make
 make DESTDIR=$LFS install
 ln -sv bash $LFS/bin/sh
 
 cd $LFS/sources
-tar xvf coreutils-9.10.tar.xz
-cd coreutils-9.10
+tar xvf coreutils-9.11.tar.xz
+cd coreutils-9.11
 # patches are not needed at this time (i8n and character boundary recognition patch for POSIX compliance)
 ./configure --prefix=/usr                     \
             --host=$LFS_TGT                   \
             --build=$(build-aux/config.guess) \
-            --enable-install-program=hostname \
-            --enable-no-install-program=kill,uptime
+            --enable-install-program=hostname
 
 make
 make DESTDIR=$LFS install
@@ -110,8 +115,8 @@ make
 make DESTDIR=$LFS install
 
 cd $LFS/sources
-tar xvf file-5.46.tar.xz
-cd file-5.46
+tar xvf file-5.48.tar.xz
+cd file-5.48
 # make temporary copy of file (needed for signature generation)
 # WORK: what is this "signature" and why would we need a temporary copy of file to complete a list of signatures?
 mkdir build
@@ -128,8 +133,8 @@ make DESTDIR=$LFS install
 rm -v $LFS/usr/lib/libmagic.la
 
 cd $LFS/sources
-tar xf findutils-4.10.0.tar.xz
-cd findutils-4.10.0
+tar xf findutils-4.11.0.tar.xz
+cd findutils-4.11.0
 ./configure --prefix=/usr                   \
             --localstatedir=/var/lib/locate \
             --host=$LFS_TGT                 \
@@ -137,8 +142,8 @@ cd findutils-4.10.0
 make; make DESTDIR=$LFS install
 
 cd $LFS/sources
-tar xf gawk-5.3.2.tar.xz
-cd gawk-5.3.2
+tar xf gawk-5.4.1.tar.xz
+cd gawk-5.4.1
 # remove extras
 sed -i 's/extras//' Makefile.in
 ./configure --prefix=/usr   \
@@ -177,8 +182,8 @@ cd patch-2.8
 make; make DESTDIR=$LFS install
 
 cd $LFS/sources
-tar xf sed-4.9.tar.xz
-cd sed-4.9
+tar xf sed-4.10.tar.xz
+cd sed-4.10
 ./configure --prefix=/usr   \
             --host=$LFS_TGT \
             --build=$(./build-aux/config.guess)
@@ -193,22 +198,22 @@ cd tar-1.35
 make; make DESTDIR=$LFS install
 
 cd $LFS/sources
-tar xf xz-5.8.1.tar.xz
-cd xz-5.8.1
+tar xf xz-5.8.3.tar.xz
+cd xz-5.8.3
 ./configure --prefix=/usr                     \
             --host=$LFS_TGT                   \
             --build=$(build-aux/config.guess) \
             --disable-static                  \
-            --docdir=/usr/share/doc/xz-5.8.1
+            --docdir=/usr/share/doc/xz-5.8.3
 make; make DESTDIR=$LFS install
 rm -v $LFS/usr/lib/liblzma.la
 
 ### SECOND PASS ###
 # binutils rebuild
 cd $LFS/sources
-# WORK: should you do: rm -rf binutils-2.45
-tar xf binutils-2.45.tar.xz
-cd binutils-2.45
+# WORK: should you do: rm -rf binutils-2.47
+tar xf binutils-2.47.tar.xz
+cd binutils-2.47
 sed '6031s/$add_dir//' -i ltmain.sh
 # remove the old build subdir - note nothing was changed outside of the build dir
 # however, odd things can happen with tools getting activated within the build 
@@ -231,18 +236,16 @@ rm -v $LFS/usr/lib/lib{bfd,ctf,ctf-nobfd,opcodes,sframe}.{a,la}
 
 cd $LFS/sources
 # refresh the gcc source tree from tarball
-rm -rf gcc-15.2.0
-tar xf gcc-15.2.0.tar.xz
-cd gcc-15.2.0
+rm -rf gcc-16.2.0
+tar xf gcc-16.2.0.tar.xz
+cd gcc-16.2.0
 tar -xf ../mpfr-4.2.2.tar.xz
 mv -v mpfr-4.2.2 mpfr
 tar -xf ../gmp-6.3.0.tar.xz
 mv -v gmp-6.3.0 gmp
-tar -xf ../mpc-1.3.1.tar.gz
-mv -v mpc-1.3.1 mpc
-# ARM64-specific:
-sed -e '/lp64=/s/lib64/lib/' -i.orig gcc/config/aarch64/t-aarch64-linux
-sed '/thread_header =/s/@.*@/gthr-posix.h/' -i libgcc/Makefile.in libstdc++-v3/include/Makefile.in
+tar -xf ../mpc-1.4.1.tar.gz
+mv -v mpc-1.4.1 mpc
+
 mkdir build
 cd build
 ../configure                   \
@@ -253,6 +256,7 @@ cd build
     --with-build-sysroot=$LFS  \
     --enable-default-pie       \
     --enable-default-ssp       \
+    --disable-fixincludes      \
     --disable-nls              \
     --disable-multilib         \
     --disable-libatomic        \
@@ -262,7 +266,9 @@ cd build
     --disable-libssp           \
     --disable-libvtv           \
     --enable-languages=c,c++   \
-    LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc
+    CXX_FOR_TARGET="$LFS_TGT-gcc -nostdinc++" \
+    LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc \
+    target_configargs=gcc_cv_target_thread_file=posix
 
 make; make DESTDIR=$LFS install
 ln -sv gcc $LFS/usr/bin/cc

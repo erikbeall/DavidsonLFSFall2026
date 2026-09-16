@@ -10,7 +10,7 @@ QDRIVE1="-drive file=build-host-phase0.qcow2,if=virtio,format=qcow2"
 QDRIVE2="-drive file=lfs-target.qcow2,if=virtio,format=qcow2"
 QEFI_RO="-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd"
 QEFI_RW="-drive if=pflash,format=raw,file=OVMF_VARS-build-host.fd"
-qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 --enable-kvm \
+qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 \
   $QEFI_RO $QEFI_RW $QDRIVE1 $QDRIVE2 \
   -device qemu-xhci -device usb-kbd -device usb-tablet \
   -netdev user,id=n0,hostfwd=tcp::2222-:22 \
@@ -94,9 +94,9 @@ cd $LFS/sources
 # make sources dir "sticky" so only owner can delete - entirely optional
 chmod -v a+wt $LFS/sources
 
-# get the curated list of sources and their md5sums for verification (using the most recent arm64 branch)
-wget -c   https://www.linuxfromscratch.org/~xry111/lfs/view/arm64/wget-list-sysv
-wget -c   https://www.linuxfromscratch.org/~xry111/lfs/view/arm64/md5sums
+# get the curated list of sources and their md5sums for verification (using the most recent amd64 branch)
+wget -c   https://www.linuxfromscratch.org/lfs/downloads/stable-systemd/wget-list
+wget -c   https://www.linuxfromscratch.org/lfs/downloads/stable-systemd/md5sums
 
 # get all sources
 wget -c   --input-file=./wget-list-sysv --directory-prefix=$LFS/sources
@@ -109,11 +109,7 @@ wget -c   --input-file=./wget-list-sysv --directory-prefix=$LFS/sources
 md5sum -c md5sums
 # should report OK for every package, no missing files or otherwise
 # may need to hunt around as mirrors do change, e.g. wget https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-2.5.0.tar.gz
-# or use the LFS mirrors: wget https://lfs.gnlug.org/pub/lfs/lfs-packages/12.0/gcc-13.2.0.tar.xz etc
-
-# for x86_64, use the systemd main
-# wget -c https://www.linuxfromscratch.org/lfs/downloads/stable-systemd/wget-list-systemd
-# wget -c https://www.linuxfromscratch.org/lfs/downloads/stable-systemd/md5sums
+# or use the LFS mirrors: wget https://lfs.gnlug.org/pub/lfs/lfs-packages/13.1/gcc-13.2.0.tar.xz etc
 
 ### CONTINUE PREPARATIONS
 
@@ -176,7 +172,7 @@ qemu-img create -f qcow2 -b lfs-target.qcow2 -F qcow2 lfs-target-phase1.qcow2
 QDRIVE2="-drive file=lfs-target-phase1.qcow2,if=virtio,format=qcow2"
 
 # boot with the new phase1 overlays
-qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 --enable-kvm \
+qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 \
   $QEFI_RO $QEFI_RW $QDRIVE1 $QDRIVE2 \
   -device qemu-xhci -device usb-kbd -device usb-tablet \
   -netdev user,id=n0,hostfwd=tcp::2222-:22 \

@@ -26,8 +26,8 @@ su - lfs
 
 # build binutils
 cd $LFS/sources
-tar xvf binutils-2.45.tar.xz
-cd binutils-2.45
+tar xvf binutils-2.47.tar.xz
+cd binutils-2.47
 mkdir build
 cd build
 ../configure --prefix=$LFS/tools \
@@ -53,20 +53,24 @@ make install
 # also take a look in /mnt/lfs/tools -> the make install for binutils has now changed that dir
 
 cd $LFS/sources
-tar xf gcc-15.2.0.tar.xz
-cd gcc-15.2.0
+tar xf gcc-16.2.0.tar.xz
+cd gcc-16.2.0
 tar -xf ../mpfr-4.2.2.tar.xz
 mv -v mpfr-4.2.2 mpfr
 tar -xf ../gmp-6.3.0.tar.xz
 mv -v gmp-6.3.0 gmp
-tar -xf ../mpc-1.3.1.tar.gz
-mv -v mpc-1.3.1 mpc
+tar -xf ../mpc-1.4.1.tar.gz
+mv -v mpc-1.4.1 mpc
+
+# change the base name for x86_64 installs
+sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
+
 mkdir build
 cd build
 ../configure                  \
     --target=$LFS_TGT         \
     --prefix=$LFS/tools       \
-    --with-glibc-version=2.42 \
+    --with-glibc-version=2.44 \
     --with-sysroot=$LFS       \
     --with-newlib             \
     --without-headers         \
@@ -94,16 +98,15 @@ make install
 cd ..
 
 # everything you compile will need certain headers, at this point, one will need to be modified
-cat gcc/limitx.h gcc/glimits.h gcc/limity.h > \
-  `dirname $($LFS_TGT-gcc -print-libgcc-file-name)`/include/limits.h
+cat gcc/limitx.h gcc/glimits.h gcc/limity.h > `dirname $($LFS_TGT-gcc -print-libgcc-file-name)`/include/limits.h
 
 # WORK: did you spot the bashism?
 # see https://mywiki.wooledge.org/Bashism and other references
 
 cd $LFS/sources
 # version may differ - look closely - copy/paste will fail...
-tar xf linux-6.16.1.tar.xz
-cd tar xf linux-6.16.1
+tar xf linux-7.1.8.tar.xz
+cd tar xf linux-7.1.8
 make mrproper
 make headers
 
@@ -112,12 +115,18 @@ make headers
 find usr/include -type f ! -name '*.h' -delete
 cp -rv usr/include $LFS/usr
 
+# make symlinks for glibc
+ln -sfv ../lib/ld-linux-x86-64.so.2 $LFS/lib64
+ln -sfv ../lib/ld-linux-x86-64.so.2 $LFS/lib64/ld-lsb-x86-64.so.3
+
 cd $LFS/sources
 tar xf glibc-2.42.tar.xz
 cd glibc-2.42
 # look at the patch file - these are extremely common in package management, typically these will get pushed to the source
 # WORK: in this case, what does this patch do?
-patch -Np1 -i ../glibc-2.42-fhs-1.patch
+patch -Np1 -i ../glibc-fhs-1.patch
+# fix for OLD processors where tanh would fail (I'm taking their word for it)
+patch -Np1 -i ../glibc-2.44-upstream_fixes-1.patch
 mkdir build; cd build
 echo "rootsbindir=/usr/sbin" > configparms
 ../configure                             \
@@ -126,10 +135,10 @@ echo "rootsbindir=/usr/sbin" > configparms
       --build=$(../scripts/config.guess) \
       --disable-nscd                     \
       libc_cv_slibdir=/usr/lib           \
-      --enable-kernel=5.4
+      --enable-kernel=5.10
 
 # WORK: what does disable-nscd do?
-# WORK: and what is the purpose of enabling kernels back to 5.4?
+# WORK: and what is the purpose of enabling kernels back to 5.10?
 
 make
 make DESTDIR=$LFS install
@@ -167,7 +176,7 @@ mkdir build; cd build
     --disable-multilib         \
     --disable-nls              \
     --disable-libstdcxx-pch    \
-    --with-gxx-include-dir=/tools/$LFS_TGT/include/c++/15.2.0
+    --with-gxx-include-dir=/tools/$LFS_TGT/include/c++/16.2.0
 
 # --host specifically forces use of the cross-compiler
 make
@@ -185,7 +194,7 @@ qemu-img create -f qcow2 -b lfs-target-phase1.qcow2 -F qcow2 lfs-target-phase2.q
 QDRIVE2="-drive file=lfs-target-phase2.qcow2,if=virtio,format=qcow2"
 
 # boot with the new phase1 overlays
-qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 --enable-kvm \
+qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 \
   $QEFI_RO $QEFI_RW $QDRIVE1 $QDRIVE2 \
   -device qemu-xhci -device usb-kbd -device usb-tablet \
   -netdev user,id=n0,hostfwd=tcp::2222-:22 \

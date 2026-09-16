@@ -15,7 +15,7 @@ QDRIVE2="-drive file=lfs-target-phase3.qcow2,if=virtio,format=qcow2"
 QDRIVE1="-drive file=build-host-phase1.qcow2,if=virtio,format=qcow2"
 QEFI_RO="-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd"
 QEFI_RW="-drive if=pflash,format=raw,file=OVMF_VARS-build-host.fd"
-qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 --enable-kvm \
+qemu-system-x86_64 -M q35 -accel kvm -cpu host -smp 4 -m 8192 \
   $QEFI_RO $QEFI_RW $QDRIVE1 $QDRIVE2 \
   -device qemu-xhci -device usb-kbd -device usb-tablet \
   -netdev user,id=n0,hostfwd=tcp::2222-:22 \
@@ -26,6 +26,7 @@ sudo su
 
 # set the one ENV variable needed below (change if you decided to mount somewhere else)
 export LFS=/mnt/lfs
+chown --from lfs -R root:root $LFS/lib64
 # change ownership from lfs to root - lfs only exists on the build host
 chown -R --from lfs root:root $LFS
 # prepare target dirs for virtualfs mounts
@@ -103,7 +104,15 @@ root:x:0:0:root:/root:/bin/bash
 bin:x:1:1:bin:/dev/null:/usr/bin/false
 daemon:x:6:6:Daemon User:/dev/null:/usr/bin/false
 messagebus:x:18:18:D-Bus Message Daemon User:/run/dbus:/usr/bin/false
+systemd-journal-gateway:x:73:73:systemd Journal Gateway:/:/usr/bin/false
+systemd-journal-remote:x:74:74:systemd Journal Remote:/:/usr/bin/false
+systemd-journal-upload:x:75:75:systemd Journal Upload:/:/usr/bin/false
+systemd-network:x:76:76:systemd Network Management:/:/usr/bin/false
+systemd-resolve:x:77:77:systemd Resolver:/:/usr/bin/false
+systemd-timesync:x:78:78:systemd Time Synchronization:/:/usr/bin/false
+systemd-coredump:x:79:79:systemd Core Dumper:/:/usr/bin/false
 uuidd:x:80:80:UUID Generation Daemon User:/dev/null:/usr/bin/false
+systemd-oom:x:81:81:systemd Out Of Memory Daemon:/:/usr/bin/false
 nobody:x:65534:65534:Unprivileged User:/dev/null:/usr/bin/false
 EOF
 
@@ -122,13 +131,23 @@ dialout:x:10:
 audio:x:11:
 video:x:12:
 utmp:x:13:
+clock:x:14:
 cdrom:x:15:
 adm:x:16:
 messagebus:x:18:
+systemd-journal:x:23:
 input:x:24:
 mail:x:34:
 kvm:x:61:
+systemd-journal-gateway:x:73:
+systemd-journal-remote:x:74:
+systemd-journal-upload:x:75:
+systemd-network:x:76:
+systemd-resolve:x:77:
+systemd-timesync:x:78:
+systemd-coredump:x:79:
 uuidd:x:80:
+systemd-oom:x:81:
 wheel:x:97:
 users:x:999:
 nogroup:x:65534:
@@ -150,7 +169,7 @@ chmod -v 600  /var/log/btmp
 
 # return to building chapter 7 programs - note no more use of $LFS while in chroot
 
-PKGNAME="gettext-0.26"
+PKGNAME="gettext-1.0"
 cd /sources
 tar xf $PKGNAME.tar.xz; cd $PKGNAME
 ./configure --disable-shared
@@ -172,15 +191,31 @@ sh Configure -des                                         \
              -D prefix=/usr                               \
              -D vendorprefix=/usr                         \
              -D useshrplib                                \
-             -D privlib=/usr/lib/perl5/5.42/core_perl     \
-             -D archlib=/usr/lib/perl5/5.42/core_perl     \
-             -D sitelib=/usr/lib/perl5/5.42/site_perl     \
-             -D sitearch=/usr/lib/perl5/5.42/site_perl    \
-             -D vendorlib=/usr/lib/perl5/5.42/vendor_perl \
-             -D vendorarch=/usr/lib/perl5/5.42/vendor_perl
+             -D privlib=/usr/lib/perl5/5.44/core_perl     \
+             -D archlib=/usr/lib/perl5/5.44/core_perl     \
+             -D sitelib=/usr/lib/perl5/5.44/site_perl     \
+             -D sitearch=/usr/lib/perl5/5.44/site_perl    \
+             -D vendorlib=/usr/lib/perl5/5.44/vendor_perl \
+             -D vendorarch=/usr/lib/perl5/5.44/vendor_perl
 make; make install
 
-PKGNAME="Python-3.14.0"
+PKGNAME="zlib-1.3.2"
+cd /sources
+tar xf $PKGNAME.tar.xz; cd $PKGNAME
+./configure --prefix=/usr
+make; make install
+# unnecessary static lib
+rm -fv /usr/lib/libz.a
+
+
+PKGNAME="mpdecimal-4.0.1"
+cd /sources
+tar xf $PKGNAME.tar.xz; cd $PKGNAME
+./configure --prefix=/usr --disable-static --docdir=/usr/share/doc/mpdecimal-4.0.1
+make; make install
+
+
+PKGNAME="Python-3.14.7"
 cd /sources
 tar xf $PKGNAME.tar.xz; cd $PKGNAME
 ./configure --prefix=/usr       \
@@ -189,14 +224,14 @@ tar xf $PKGNAME.tar.xz; cd $PKGNAME
             --without-static-libpython
 make; make install
 
-PKGNAME="texinfo-7.2"
+PKGNAME="texinfo-7.3"
 cd /sources
 tar xf $PKGNAME.tar.xz; cd $PKGNAME
 ./configure --prefix=/usr
 make; make install
 
 mkdir -pv /var/lib/hwclock
-PKGNAME="util-linux-2.41.1"
+PKGNAME="util-linux-2.42.2"
 cd /sources
 tar xf $PKGNAME.tar.xz; cd $PKGNAME
 ./configure --libdir=/usr/lib     \
@@ -212,7 +247,7 @@ tar xf $PKGNAME.tar.xz; cd $PKGNAME
             --disable-liblastlog2 \
             --without-python      \
             ADJTIME_PATH=/var/lib/hwclock/adjtime \
-            --docdir=/usr/share/doc/util-linux-2.41.1
+            --docdir=/usr/share/doc/util-linux-2.42.2
 make; make install
 
 # remove doc files, will replace them later
