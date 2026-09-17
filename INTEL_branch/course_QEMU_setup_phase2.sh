@@ -44,7 +44,7 @@ make
 make DESTDIR=$LFS install
 
 cd $LFS/sources
-tar xfz ncurses-6.6.tgz
+tar xfz ncurses-6.6.tar.gz
 cd ncurses-6.6
 # first build tic tool
 mkdir build
@@ -115,7 +115,7 @@ make
 make DESTDIR=$LFS install
 
 cd $LFS/sources
-tar xvf file-5.48.tar.xz
+tar xvf file-5.48.tar.gz
 cd file-5.48
 # make temporary copy of file (needed for signature generation)
 # WORK: what is this "signature" and why would we need a temporary copy of file to complete a list of signatures?
@@ -243,7 +243,7 @@ tar -xf ../mpfr-4.2.2.tar.xz
 mv -v mpfr-4.2.2 mpfr
 tar -xf ../gmp-6.3.0.tar.xz
 mv -v gmp-6.3.0 gmp
-tar -xf ../mpc-1.4.1.tar.gz
+tar -xfz ../mpc-1.4.1.tar.gz
 mv -v mpc-1.4.1 mpc
 
 mkdir build

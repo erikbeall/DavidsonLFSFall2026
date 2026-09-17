@@ -201,7 +201,7 @@ make; make install
 
 PKGNAME="zlib-1.3.2"
 cd /sources
-tar xf $PKGNAME.tar.xz; cd $PKGNAME
+tar xfz $PKGNAME.tar.gz; cd $PKGNAME
 ./configure --prefix=/usr
 make; make install
 # unnecessary static lib
@@ -210,7 +210,7 @@ rm -fv /usr/lib/libz.a
 
 PKGNAME="mpdecimal-4.0.1"
 cd /sources
-tar xf $PKGNAME.tar.xz; cd $PKGNAME
+tar xfz $PKGNAME.tar.gz; cd $PKGNAME
 ./configure --prefix=/usr --disable-static --docdir=/usr/share/doc/mpdecimal-4.0.1
 make; make install
 
