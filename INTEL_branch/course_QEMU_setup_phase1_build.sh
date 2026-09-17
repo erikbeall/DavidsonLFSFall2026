@@ -121,8 +121,8 @@ ln -sfv ../lib/ld-linux-x86-64.so.2 $LFS/lib64
 ln -sfv ../lib/ld-linux-x86-64.so.2 $LFS/lib64/ld-lsb-x86-64.so.3
 
 cd $LFS/sources
-tar xf glibc-2.42.tar.xz
-cd glibc-2.42
+tar xf glibc-2.44.tar.xz
+cd glibc-2.44
 # look at the patch file - these are extremely common in package management, typically these will get pushed to the source
 # WORK: in this case, what does this patch do?
 patch -Np1 -i ../glibc-fhs-1.patch
@@ -164,7 +164,7 @@ rm -v a.out dummy.log
 
 # gcc again
 cd $LFS/sources
-cd gcc-15.2.0
+cd gcc-16.2.0
 # remove the build dir and start again
 rm -rf build
 mkdir build; cd build
