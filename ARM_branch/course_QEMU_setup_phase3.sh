@@ -146,13 +146,21 @@ chmod -v 664  /var/log/lastlog
 chmod -v 600  /var/log/btmp
 
 # return to building chapter 7 programs - note no more use of $LFS while in chroot
+#
+# NOTE the "make && make install" below, rather than "make; make install".
+# With ";" a FAILED make still runs make install, which quietly installs
+# whatever did manage to build and exits 0.  You do not find out until
+# something much later cannot find a tool - a broken texinfo here, for
+# instance, stays invisible until DejaGNU in Chapter 8 calls makeinfo.
+# If a make fails, STOP and fix it; do not move on to the next package.
 
 PKGNAME="gettext-0.26"
 cd /sources
 tar xf $PKGNAME.tar.xz; cd $PKGNAME
 ./configure --disable-shared
 make
-# only need three programs from gettext at this stage
+# only need three programs from gettext at this stage - if the make above
+# failed, STOP: do not run the cp, it would install a partial gettext
 cp -v gettext-tools/src/{msgfmt,msgmerge,xgettext} /usr/bin
 
 PKGNAME="bison-3.8.2"
@@ -160,7 +168,7 @@ cd /sources
 tar xf $PKGNAME.tar.xz; cd $PKGNAME
 ./configure --prefix=/usr \
             --docdir=/usr/share/doc/bison-3.8.2
-make; make install
+make && make install
 
 PKGNAME="perl-5.42.0"
 cd /sources
@@ -175,7 +183,7 @@ sh Configure -des                                         \
              -D sitearch=/usr/lib/perl5/5.42/site_perl    \
              -D vendorlib=/usr/lib/perl5/5.42/vendor_perl \
              -D vendorarch=/usr/lib/perl5/5.42/vendor_perl
-make; make install
+make && make install
 
 PKGNAME="Python-3.14.0"
 cd /sources
@@ -184,13 +192,13 @@ tar xf $PKGNAME.tar.xz; cd $PKGNAME
             --enable-shared     \
             --without-ensurepip \
             --without-static-libpython
-make; make install
+make && make install
 
 PKGNAME="texinfo-7.2"
 cd /sources
 tar xf $PKGNAME.tar.xz; cd $PKGNAME
 ./configure --prefix=/usr
-make; make install
+make && make install
 
 mkdir -pv /var/lib/hwclock
 PKGNAME="util-linux-2.41.1"
@@ -210,7 +218,7 @@ tar xf $PKGNAME.tar.xz; cd $PKGNAME
             --without-python      \
             ADJTIME_PATH=/var/lib/hwclock/adjtime \
             --docdir=/usr/share/doc/util-linux-2.41.1
-make; make install
+make && make install
 
 # remove doc files, will replace them later
 rm -rf /usr/share/{info,man,doc}/*
