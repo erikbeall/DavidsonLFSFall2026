@@ -5,15 +5,16 @@
 # UNLIKE the other course_QEMU_setup_phase*.sh files in this directory, THIS ONE
 # IS A REAL SCRIPT and is meant to be executed.
 #
-# It automates Chapter 8 ("Installing Basic System Software") of the arm64 LFS
-# book, https://www.linuxfromscratch.org/~xry111/lfs/view/arm64/ , book revision
-# arm64-r12.4-42.  Every build command below was lifted verbatim from that book;
+# It automates Chapter 8 ("Installing Basic System Software") of LFS
+# 13.1-systemd for x86_64,
+# https://www.linuxfromscratch.org/lfs/view/stable-systemd/ .
+# Every build command below was lifted verbatim from that book;
 # the only edits are the ones listed under "DEVIATIONS FROM THE BOOK" at the
 # bottom of this header, and each one is marked in place with a "# COURSE:"
 # comment.
 #
 # WHY THIS SCRIPT EXISTS
-#   Chapter 8 is ~84 packages and, with the test suites, the better part of a
+#   Chapter 8 is 80 packages and, with the test suites, the better part of a
 #   day of wall-clock time on a 4-core QEMU guest.  Almost all of it is
 #   "./configure && make && make install" with package-specific warts.  Typing
 #   it out teaches you very little that Chapters 5-7 did not already teach you,
@@ -56,6 +57,10 @@
 #   /var/lib/lfs-phase4/, and a re-run skips anything already stamped.  If the
 #   VM dies at package 57, just run it again.
 #
+#   NOTE this is the systemd branch of LFS, unlike ARM_branch/, which follows
+#   the SysV arm64 book.  Concretely: systemd and D-Bus replace udev/sysklogd/
+#   sysvinit, and Chapter 9 will look quite different from the ARM one.
+#
 # DEVIATIONS FROM THE BOOK (all of them, and why)
 #   1. Test suites are SKIPPED by default.  They roughly triple the runtime and
 #      several of them (glibc, gcc, binutils) have known, expected failures that
@@ -78,8 +83,12 @@
 #   7. Section 8.86 "Stripping" is OFF by default (LFS_STRIP=1 turns it on).
 #      It saves ~2 GB but makes debugging the resulting system much harder, and
 #      it hardcodes library version numbers that drift between book revisions.
-#   8. Section 8.87 "Cleaning Up" removes the tester user and the cross-compile
+#   8. Section 8.85 "Cleaning Up" removes the tester user and the cross-compile
 #      leftovers; it runs last, controlled by LFS_CLEANUP (default 1).
+#   9. GRUB (8.65) is the one hand-written package function.  The book splits it
+#      into three mutually-exclusive boot methods and tells you to build the one
+#      you need.  This course's guest boots OVMF, so LFS_GRUB_TARGETS defaults
+#      to "bios uefi64" and skips 32-bit UEFI.
 #
 # ==============================================================================
 
@@ -95,13 +104,18 @@ LFS_TIMEZONE="${LFS_TIMEZONE:-America/New_York}"
 # Book section 8.29.3.  CHANGE THIS, or at least know that you did not.
 LFS_ROOT_PASSWORD="${LFS_ROOT_PASSWORD:-lfs}"
 
-# Book section 8.65.  "letter" in the US, "A4" most other places.
+# Book section 8.64.  "letter" in the US, "A4" most other places.
 LFS_PAPER_SIZE="${LFS_PAPER_SIZE:-letter}"
 
 # Test suites: off by default.  See deviation 1 above.
 LFS_RUN_TESTS="${LFS_RUN_TESTS:-0}"
 
-# Section 8.86 Stripping (off) and 8.87 Cleaning Up (on).
+# Which GRUB boot methods to build (book 8.65).  This course's QEMU guest boots
+# OVMF firmware = 64-bit UEFI; the BIOS section is the book's baseline build.
+# Add uefi32 only if you actually need a 32-bit UEFI boot.
+LFS_GRUB_TARGETS="${LFS_GRUB_TARGETS:-bios uefi64}"
+
+# Section 8.84 Stripping (off) and 8.85 Cleaning Up (on).
 LFS_STRIP="${LFS_STRIP:-0}"
 LFS_CLEANUP="${LFS_CLEANUP:-1}"
 
@@ -139,6 +153,7 @@ PACKAGES=(
     "tcl"
     "expect"
     "dejagnu"
+    "ninja"
     "pkgconf"
     "binutils"
     "gmp"
@@ -149,6 +164,7 @@ PACKAGES=(
     "libcap"
     "libxcrypt"
     "shadow"
+    "gawk"
     "gcc"
     "ncurses"
     "sed"
@@ -164,25 +180,22 @@ PACKAGES=(
     "inetutils"
     "less"
     "perl"
-    "xml-parser"
-    "intltool"
     "autoconf"
     "automake"
     "openssl"
     "libelf"
     "libffi"
     "sqlite"
+    "mpdecimal"
     "Python"
     "flit-core"
     "packaging"
     "wheel"
     "setuptools"
-    "ninja"
     "meson"
     "kmod"
     "coreutils"
     "diffutils"
-    "gawk"
     "findutils"
     "groff"
     "grub"
@@ -197,14 +210,14 @@ PACKAGES=(
     "vim"
     "markupsafe"
     "jinja2"
-    "udev"
+    "systemd"
+    "dbus"
     "man-db"
     "procps-ng"
     "util-linux"
     "e2fsprogs"
-    "sysklogd"
-    "sysvinit"
 )
+
 # Package name -> the glob that finds its tarball in /sources.  Deliberately
 # loose on version, so a book revision bump does not invalidate every entry.
 # (A case statement rather than an associative array: no bash 4 dependency, and
@@ -228,6 +241,7 @@ tarball_glob() {
         tcl)           echo 'tcl*-src.tar.*' ;;
         expect)        echo 'expect[0-9]*.tar.*' ;;
         dejagnu)       echo 'dejagnu-*.tar.*' ;;
+        ninja)         echo 'ninja-*.tar.*' ;;
         pkgconf)       echo 'pkgconf-*.tar.*' ;;
         binutils)      echo 'binutils-*.tar.*' ;;
         gmp)           echo 'gmp-*.tar.*' ;;
@@ -238,6 +252,7 @@ tarball_glob() {
         libcap)        echo 'libcap-*.tar.*' ;;
         libxcrypt)     echo 'libxcrypt-*.tar.*' ;;
         shadow)        echo 'shadow-*.tar.*' ;;
+        gawk)          echo 'gawk-*.tar.*' ;;
         gcc)           echo 'gcc-*.tar.*' ;;
         ncurses)       echo 'ncurses-*.t*' ;;
         sed)           echo 'sed-*.tar.*' ;;
@@ -253,25 +268,22 @@ tarball_glob() {
         inetutils)     echo 'inetutils-*.tar.*' ;;
         less)          echo 'less-*.tar.*' ;;
         perl)          echo 'perl-*.tar.*' ;;
-        xml-parser)    echo 'XML-Parser-*.tar.*' ;;
-        intltool)      echo 'intltool-*.tar.*' ;;
         autoconf)      echo 'autoconf-*.tar.*' ;;
         automake)      echo 'automake-*.tar.*' ;;
         openssl)       echo 'openssl-*.tar.*' ;;
         libelf)        echo 'elfutils-*.tar.*' ;;
         libffi)        echo 'libffi-*.tar.*' ;;
         sqlite)        echo 'sqlite-autoconf-*.tar.*' ;;
+        mpdecimal)     echo 'mpdecimal-*.tar.*' ;;
         Python)        echo 'Python-*.tar.*' ;;
         flit-core)     echo 'flit_core-*.tar.*' ;;
         packaging)     echo 'packaging-*.tar.*' ;;
         wheel)         echo 'wheel-*.tar.*' ;;
         setuptools)    echo 'setuptools-*.tar.*' ;;
-        ninja)         echo 'ninja-*.tar.*' ;;
         meson)         echo 'meson-*.tar.*' ;;
         kmod)          echo 'kmod-*.tar.*' ;;
         coreutils)     echo 'coreutils-*.tar.*' ;;
         diffutils)     echo 'diffutils-*.tar.*' ;;
-        gawk)          echo 'gawk-*.tar.*' ;;
         findutils)     echo 'findutils-*.tar.*' ;;
         groff)         echo 'groff-*.tar.*' ;;
         grub)          echo 'grub-*.tar.*' ;;
@@ -286,17 +298,15 @@ tarball_glob() {
         vim)           echo 'vim-*.tar.*' ;;
         markupsafe)    echo 'markupsafe-*.tar.*' ;;
         jinja2)        echo 'jinja2-*.tar.*' ;;
-        udev)          echo 'systemd-[0-9]*.tar.*' ;;
+        systemd)       echo 'systemd-[0-9]*.tar.*' ;;
+        dbus)          echo 'dbus-*.tar.*' ;;
         man-db)        echo 'man-db-*.tar.*' ;;
         procps-ng)     echo 'procps-ng-*.tar.*' ;;
         util-linux)    echo 'util-linux-*.tar.*' ;;
         e2fsprogs)     echo 'e2fsprogs-*.tar.*' ;;
-        sysklogd)      echo 'sysklogd-*.tar.*' ;;
-        sysvinit)      echo 'sysvinit-*.tar.*' ;;
         *) return 1 ;;
     esac
 }
-
 
 # ------------------------------------------------------------------- helpers
 
@@ -306,6 +316,9 @@ die()  { printf '\033[1;31m[fail] %s\033[0m\n' "$*" >&2; exit 1; }
 
 # want_tests - guards every "make check" block.  See deviation 1.
 want_tests() { [ "$LFS_RUN_TESTS" = "1" ]; }
+
+# grub_target <bios|uefi64|uefi32> - is this GRUB boot method wanted?
+grub_target() { [[ " $LFS_GRUB_TARGETS " == *" $1 "* ]]; }
 
 # sanity_check - run a block of diagnostic commands for their output only.  A
 # non-zero exit here is reported but never aborts the run (used for GCC's
@@ -367,7 +380,7 @@ is_done()  { [ -f "$(stamp_of "$1")" ]; }
 # fn_for <page-name> - book page name to shell function name.
 fn_for() { echo "pkg_$(echo "$1" | tr 'A-Z-' 'a-z_')"; }
 
-# 8.3. Man-pages-6.15
+# 8.3 Man-pages-6.18
 pkg_man_pages() {
     unpack 'man-pages-*.tar.*'
 
@@ -376,36 +389,30 @@ pkg_man_pages() {
     make -R GIT=false prefix=/usr install
 }
 
-# 8.4. Iana-Etc-20250926
+# 8.4 Iana-Etc-20260805
 pkg_iana_etc() {
     unpack 'iana-etc-*.tar.*'
 
-    cp services protocols /etc
+    cp -v services protocols /etc
 }
 
-# 8.5. Glibc-2.42
+# 8.5 Glibc-2.44
 pkg_glibc() {
     unpack 'glibc-[0-9]*.tar.*'
 
-    patch -Np1 -i ../glibc-2.42-fhs-1.patch
+    patch -Np1 -i ../glibc-fhs-1.patch
 
-    sed -e '/unistd.h/i #include <string.h>' \
-        -e '/libc_rwlock_init/c\
-      __libc_rwlock_define_initialized (, reset_lock);\
-      memcpy (&lock, &reset_lock, sizeof (lock));' \
-        -i stdlib/abort.c
+    patch -Np1 -i ../glibc-2.44-upstream_fixes-1.patch
 
     mkdir -v build
     cd       build
-
-    echo "rootsbindir=/usr/sbin" > configparms
 
     ../configure --prefix=/usr                   \
                  --disable-werror                \
                  --disable-nscd                  \
                  libc_cv_slibdir=/usr/lib        \
                  --enable-stack-protector=strong \
-                 --enable-kernel=5.4
+                 --enable-kernel=5.10
 
     make
 
@@ -461,11 +468,11 @@ pkg_glibc() {
 cat > /etc/nsswitch.conf << "EOF"
 # Begin /etc/nsswitch.conf
 
-passwd: files
-group: files
-shadow: files
+passwd: files systemd
+group: files systemd
+shadow: files systemd
 
-hosts: files dns
+hosts: mymachines resolve [!UNAVAIL=return] files myhostname dns
 networks: files
 
 protocols: files
@@ -476,7 +483,7 @@ rpc: files
 # End /etc/nsswitch.conf
 EOF
 
-    tar -xf ../../tzdata2025b.tar.gz
+    tar -xf ../../tzdata2026c.tar.gz
 
     ZONEINFO=/usr/share/zoneinfo
     mkdir -pv $ZONEINFO/{posix,right}
@@ -511,7 +518,7 @@ EOF
 mkdir -pv /etc/ld.so.conf.d
 }
 
-# 8.6. Zlib-1.3.1
+# 8.6 Zlib-1.3.2
 pkg_zlib() {
     unpack 'zlib-*.tar.*'
 
@@ -528,7 +535,7 @@ pkg_zlib() {
     rm -fv /usr/lib/libz.a
 }
 
-# 8.7. Bzip2-1.0.8
+# 8.7 Bzip2-1.0.8
 pkg_bzip2() {
     unpack 'bzip2-*.tar.*'
 
@@ -546,7 +553,9 @@ pkg_bzip2() {
     make PREFIX=/usr install
 
     cp -av libbz2.so.* /usr/lib
-    ln -sv libbz2.so.1.0.8 /usr/lib/libbz2.so
+    ln -sfv libbz2.so.1.0.8 /usr/lib/libbz2.so
+
+    ln -sfv libbz2.so.1.0.8 /usr/lib/libbz2.so.1
 
     cp -v bzip2-shared /usr/bin/bzip2
     for i in /usr/bin/{bzcat,bunzip2}; do
@@ -556,13 +565,13 @@ pkg_bzip2() {
     rm -fv /usr/lib/libbz2.a
 }
 
-# 8.8. Xz-5.8.1
+# 8.8 Xz-5.8.3
 pkg_xz() {
     unpack 'xz-*.tar.*'
 
     ./configure --prefix=/usr    \
                 --disable-static \
-                --docdir=/usr/share/doc/xz-5.8.1
+                --docdir=/usr/share/doc/xz-5.8.3
 
     make
 
@@ -573,7 +582,7 @@ pkg_xz() {
     make install
 }
 
-# 8.9. Lz4-1.10.0
+# 8.9 Lz4-1.10.0
 pkg_lz4() {
     unpack 'lz4-*.tar.*'
 
@@ -586,7 +595,7 @@ pkg_lz4() {
     make BUILD_STATIC=no PREFIX=/usr install
 }
 
-# 8.10. Zstd-1.5.7
+# 8.10 Zstd-1.5.7
 pkg_zstd() {
     unpack 'zstd-*.tar.*'
 
@@ -601,7 +610,7 @@ pkg_zstd() {
     rm -v /usr/lib/libzstd.a
 }
 
-# 8.11. File-5.46
+# 8.11 File-5.48
 pkg_file() {
     unpack 'file-*.tar.*'
 
@@ -616,7 +625,7 @@ pkg_file() {
     make install
 }
 
-# 8.12. Readline-8.3
+# 8.12 Readline-8.3
 pkg_readline() {
     unpack 'readline-*.tar.*'
 
@@ -624,6 +633,12 @@ pkg_readline() {
     sed -i '/{OLDSUFF}/c:' support/shlib-install
 
     sed -i 's/-Wl,-rpath,[^ ]*//' support/shobj-conf
+
+    sed -e '270a\
+         else\
+           chars_avail = 1;'      \
+        -e '288i\   result = -1;' \
+        -i.orig input.c
 
     ./configure --prefix=/usr    \
                 --disable-static \
@@ -637,12 +652,12 @@ pkg_readline() {
     install -v -m644 doc/*.{ps,pdf,html,dvi} /usr/share/doc/readline-8.3
 }
 
-# 8.13. Pcre2-10.46
+# 8.13 Pcre2-10.47
 pkg_pcre2() {
     unpack 'pcre2-*.tar.*'
 
     ./configure --prefix=/usr                       \
-                --docdir=/usr/share/doc/pcre2-10.46 \
+                --docdir=/usr/share/doc/pcre2-10.47 \
                 --enable-unicode                    \
                 --enable-jit                        \
                 --enable-pcre2-16                   \
@@ -661,7 +676,7 @@ pkg_pcre2() {
     make install
 }
 
-# 8.14. M4-1.4.20
+# 8.14 M4-1.4.21
 pkg_m4() {
     unpack 'm4-*.tar.*'
 
@@ -676,7 +691,7 @@ pkg_m4() {
     make install
 }
 
-# 8.15. Bc-7.0.3
+# 8.15 Bc-7.0.3
 pkg_bc() {
     unpack 'bc-*.tar.*'
 
@@ -691,7 +706,7 @@ pkg_bc() {
     make install
 }
 
-# 8.16. Flex-2.6.4
+# 8.16 Flex-2.6.4
 pkg_flex() {
     unpack 'flex-*.tar.*'
 
@@ -711,7 +726,7 @@ pkg_flex() {
     ln -sv flex.1 /usr/share/man/man1/lex.1
 }
 
-# 8.17. Tcl-8.6.17
+# 8.17 Tcl-8.6.18
 pkg_tcl() {
     unpack 'tcl*-src.tar.*'
 
@@ -727,16 +742,16 @@ pkg_tcl() {
         -e "s|$SRCDIR|/usr/include|"  \
         -i tclConfig.sh
 
-    sed -e "s|$SRCDIR/unix/pkgs/tdbc1.1.12|/usr/lib/tdbc1.1.12|" \
-        -e "s|$SRCDIR/pkgs/tdbc1.1.12/generic|/usr/include|"     \
-        -e "s|$SRCDIR/pkgs/tdbc1.1.12/library|/usr/lib/tcl8.6|"  \
-        -e "s|$SRCDIR/pkgs/tdbc1.1.12|/usr/include|"             \
-        -i pkgs/tdbc1.1.12/tdbcConfig.sh
+    sed -e "s|$SRCDIR/unix/pkgs/tdbc1.1.13|/usr/lib/tdbc1.1.13|" \
+        -e "s|$SRCDIR/pkgs/tdbc1.1.13/generic|/usr/include|"     \
+        -e "s|$SRCDIR/pkgs/tdbc1.1.13/library|/usr/lib/tcl8.6|"  \
+        -e "s|$SRCDIR/pkgs/tdbc1.1.13|/usr/include|"             \
+        -i pkgs/tdbc1.1.13/tdbcConfig.sh
 
-    sed -e "s|$SRCDIR/unix/pkgs/itcl4.3.4|/usr/lib/itcl4.3.4|" \
-        -e "s|$SRCDIR/pkgs/itcl4.3.4/generic|/usr/include|"    \
-        -e "s|$SRCDIR/pkgs/itcl4.3.4|/usr/include|"            \
-        -i pkgs/itcl4.3.4/itclConfig.sh
+    sed -e "s|$SRCDIR/unix/pkgs/itcl4.3.7|/usr/lib/itcl4.3.7|" \
+        -e "s|$SRCDIR/pkgs/itcl4.3.7/generic|/usr/include|"    \
+        -e "s|$SRCDIR/pkgs/itcl4.3.7|/usr/include|"            \
+        -i pkgs/itcl4.3.7/itclConfig.sh
 
     unset SRCDIR
 
@@ -753,22 +768,19 @@ pkg_tcl() {
 
     ln -sfv tclsh8.6 /usr/bin/tclsh
 
-    mv /usr/share/man/man3/{Thread,Tcl_Thread}.3
+    mv -v /usr/share/man/man3/{Thread,Tcl_Thread}.3
 
     cd ..
-    tar -xf ../tcl8.6.17-html.tar.gz --strip-components=1
-    mkdir -v -p /usr/share/doc/tcl-8.6.17
-    cp -v -r  ./html/* /usr/share/doc/tcl-8.6.17
+    tar -xf ../tcl8.6.18-html.tar.gz --strip-components=1
+    mkdir -v -p /usr/share/doc/tcl-8.6.18
+    cp -v -r  ./html/* /usr/share/doc/tcl-8.6.18
 }
 
-# 8.18. Expect-5.45.4
+# 8.18 Expect-5.45.4
 pkg_expect() {
     unpack 'expect[0-9]*.tar.*'
 
     python3 -c 'from pty import spawn; spawn(["echo", "ok"])'
-
-    tar -C tclconfig -xf ../autoconf-2.72.tar.xz --strip-components=2 \
-        autoconf-2.72/build-aux/config.{guess,sub}
 
     patch -Np1 -i ../expect-5.45.4-gcc15-1.patch
 
@@ -789,7 +801,7 @@ pkg_expect() {
     ln -svf expect5.45.4/libexpect5.45.4.so /usr/lib
 }
 
-# 8.19. DejaGNU-1.6.3
+# 8.19 DejaGNU-1.6.3
 pkg_dejagnu() {
     unpack 'dejagnu-*.tar.*'
 
@@ -809,23 +821,49 @@ pkg_dejagnu() {
     install -v -m644   doc/dejagnu.{html,txt} /usr/share/doc/dejagnu-1.6.3
 }
 
-# 8.20. Pkgconf-2.5.1
+# 8.20 Ninja-1.13.2
+pkg_ninja() {
+    unpack 'ninja-*.tar.*'
+
+    sed -i '/int Guess/a \
+      int   j = 0;\
+      char* jobs = getenv( "NINJAJOBS" );\
+      if ( jobs != NULL ) j = atoi( jobs );\
+      if ( j > 0 ) return j;\
+    ' src/ninja.cc
+
+    python3 configure.py --bootstrap --verbose
+
+    install -vm755 ninja /usr/bin/
+    install -vDm644 misc/bash-completion /usr/share/bash-completion/completions/ninja
+    install -vDm644 misc/zsh-completion  /usr/share/zsh/site-functions/_ninja
+}
+
+# 8.21 Pkgconf-3.0.5
 pkg_pkgconf() {
     unpack 'pkgconf-*.tar.*'
 
-    ./configure --prefix=/usr    \
-                --disable-static \
-                --docdir=/usr/share/doc/pkgconf-2.5.1
+    tar -xf ../meson-1.12.0.tar.gz
 
-    make
+    mkdir build
+    cd    build
 
-    make install
+    python3 ../meson-1.12.0/meson.py setup --prefix=/usr --buildtype=release ..
+
+    ninja
+
+    if want_tests; then
+        ninja test
+    fi
+
+    ninja install
+    mv /usr/share/doc/pkgconf{,-3.0.5}
 
     ln -sv pkgconf   /usr/bin/pkg-config
     ln -sv pkgconf.1 /usr/share/man/man1/pkg-config.1
 }
 
-# 8.21. Binutils-2.45
+# 8.22 Binutils-2.47
 pkg_binutils() {
     unpack 'binutils-*.tar.*'
 
@@ -841,6 +879,7 @@ pkg_binutils() {
                  --enable-64-bit-bfd \
                  --enable-new-dtags  \
                  --with-system-zlib  \
+                 --with-lib-path=/usr/lib \
                  --enable-default-hash-style=gnu
 
     make tooldir=/usr
@@ -857,7 +896,7 @@ pkg_binutils() {
             /usr/share/doc/gprofng/
 }
 
-# 8.22. GMP-6.3.0
+# 8.23 GMP-6.3.0
 pkg_gmp() {
     unpack 'gmp-*.tar.*'
 
@@ -872,16 +911,16 @@ pkg_gmp() {
     make html
 
     if want_tests; then
-        make check 2>&1 | tee gmp-check-log
-
-        awk '/# PASS:/{total+=$3} ; END{print total}' gmp-check-log
+        make check
     fi
+
+    cat $(find -name '*.log') | grep -c ^PASS
 
     make install
     make install-html
 }
 
-# 8.23. MPFR-4.2.2
+# 8.24 MPFR-4.2.2
 pkg_mpfr() {
     unpack 'mpfr-*.tar.*'
 
@@ -901,13 +940,13 @@ pkg_mpfr() {
     make install-html
 }
 
-# 8.24. MPC-1.3.1
+# 8.25 MPC-1.4.1
 pkg_mpc() {
     unpack 'mpc-*.tar.*'
 
     ./configure --prefix=/usr    \
                 --disable-static \
-                --docdir=/usr/share/doc/mpc-1.3.1
+                --docdir=/usr/share/doc/mpc-1.4.1
 
     make
     make html
@@ -920,14 +959,14 @@ pkg_mpc() {
     make install-html
 }
 
-# 8.25. Attr-2.5.2
+# 8.26 Attr-2.6.0
 pkg_attr() {
     unpack 'attr-*.tar.*'
 
     ./configure --prefix=/usr     \
                 --disable-static  \
                 --sysconfdir=/etc \
-                --docdir=/usr/share/doc/attr-2.5.2
+                --docdir=/usr/share/doc/attr-2.6.0
 
     make
 
@@ -938,13 +977,13 @@ pkg_attr() {
     make install
 }
 
-# 8.26. Acl-2.3.2
+# 8.27 Acl-2.4.0
 pkg_acl() {
     unpack 'acl-*.tar.*'
 
     ./configure --prefix=/usr    \
                 --disable-static \
-                --docdir=/usr/share/doc/acl-2.3.2
+                --docdir=/usr/share/doc/acl-2.4.0
 
     make
 
@@ -955,7 +994,7 @@ pkg_acl() {
     make install
 }
 
-# 8.27. Libcap-2.76
+# 8.28 Libcap-2.78
 pkg_libcap() {
     unpack 'libcap-*.tar.*'
 
@@ -970,9 +1009,11 @@ pkg_libcap() {
     make prefix=/usr lib=lib install
 }
 
-# 8.28. Libxcrypt-4.4.38
+# 8.29 Libxcrypt-4.5.2
 pkg_libxcrypt() {
     unpack 'libxcrypt-*.tar.*'
+
+    sed -i '/strchr/s/const//' lib/crypt-{sm3,gost}-yescrypt.c
 
     ./configure --prefix=/usr                \
                 --enable-hashes=strong,glibc \
@@ -989,18 +1030,16 @@ pkg_libxcrypt() {
     make install
 }
 
-# 8.29. Shadow-4.18.0
+# 8.30 Shadow-4.20.2
 pkg_shadow() {
     unpack 'shadow-*.tar.*'
 
-    sed -i 's/groups$(EXEEXT) //' src/Makefile.in
-    find man -name Makefile.in -exec sed -i 's/groups\.1 / /'   {} \;
     find man -name Makefile.in -exec sed -i 's/getspnam\.3 / /' {} \;
     find man -name Makefile.in -exec sed -i 's/passwd\.5 / /'   {} \;
 
-    sed -e 's:#ENCRYPT_METHOD DES:ENCRYPT_METHOD YESCRYPT:' \
-        -e 's:/var/spool/mail:/var/mail:'                   \
-        -e '/PATH=/{s@/sbin:@@;s@/bin:@@}'                  \
+    sed -e 's:#ENCRYPT_METHOD SHA512:ENCRYPT_METHOD YESCRYPT:' \
+        -e 's:/var/spool/mail:/var/mail:'                      \
+        -e '/PATH=/{s@/sbin:@@;s@/bin:@@}'                     \
         -i etc/login.defs
 
     touch /usr/bin/passwd
@@ -1008,6 +1047,7 @@ pkg_shadow() {
                 --disable-static    \
                 --with-{b,yes}crypt \
                 --without-libbsd    \
+                --disable-logind    \
                 --with-group-name-max-length=32
 
     make
@@ -1024,17 +1064,46 @@ pkg_shadow() {
 
     sed -i '/MAIL/s/yes/no/' /etc/default/useradd
 
+    touch /etc/sub{u,g}id
+
     # COURSE: the book prompts for a password; we take LFS_ROOT_PASSWORD.
     # CHANGE IT after first boot with: passwd root
     echo "root:$LFS_ROOT_PASSWORD" | chpasswd
 }
 
-# 8.30. GCC-15.2.0
+# 8.31 Gawk-5.4.1
+pkg_gawk() {
+    unpack 'gawk-*.tar.*'
+
+    sed -i 's/extras//' Makefile.in
+
+    ./configure --prefix=/usr
+
+    make
+
+    if want_tests; then
+        chown -R tester .
+        su tester -c "PATH=$PATH make check"
+    fi
+
+    rm -f /usr/bin/gawk-5.4.1
+    make install
+
+    ln -sv gawk.1 /usr/share/man/man1/awk.1
+
+    install -vDm644 doc/{awkforai.txt,*.{eps,pdf,jpg}} -t /usr/share/doc/gawk-5.4.1
+}
+
+# 8.32 GCC-16.2.0
 pkg_gcc() {
     unpack 'gcc-*.tar.*'
 
-    sed -e '/lp64=/s/lib64/lib/' \
-        -i.orig gcc/config/aarch64/t-aarch64-linux
+    case $(uname -m) in
+      x86_64)
+        sed -e '/m64=/s/lib64/lib/' \
+            -i.orig gcc/config/i386/t-linux64
+      ;;
+    esac
 
     mkdir -v build
     cd       build
@@ -1045,6 +1114,7 @@ pkg_gcc() {
                  --enable-default-pie     \
                  --enable-default-ssp     \
                  --enable-host-pie        \
+                 --enable-targets=all     \
                  --disable-multilib       \
                  --disable-bootstrap      \
                  --disable-fixincludes    \
@@ -1055,25 +1125,21 @@ pkg_gcc() {
     if want_tests; then
         ulimit -s -H unlimited
 
-        sed -e '/cpython/d' -i ../gcc/testsuite/gcc.dg/plugin/plugin.exp
-
         chown -R tester .
         su tester -c "PATH=$PATH make -k check"
 
-        ../contrib/test_summary
+        ../contrib/test_summary -t
     fi
 
     make install
 
-    chown -v -R root:root \
-        /usr/lib/gcc/$(gcc -dumpmachine)/15.2.0/include{,-fixed}
+    chown -v -R root:root $(gcc -print-file-name=include){,-fixed}
 
     ln -svr /usr/bin/cpp /usr/lib
 
     ln -sv gcc.1 /usr/share/man/man1/cc.1
 
-    ln -sfv ../../libexec/gcc/$(gcc -dumpmachine)/15.2.0/liblto_plugin.so \
-            /usr/lib/bfd-plugins/
+    ln -sfvr $(gcc -print-prog-name=liblto_plugin.so) /usr/lib/bfd-plugins/
 
     sanity_check <<'LFS_SANITY_EOF'
 echo 'int main(){}' | cc -x c - -v -Wl,--verbose &> dummy.log
@@ -1106,7 +1172,7 @@ LFS_SANITY_EOF
     mv -v /usr/lib/*gdb.py /usr/share/gdb/auto-load/usr/lib
 }
 
-# 8.31. Ncurses-6.5-20250809
+# 8.33 Ncurses-6.6
 pkg_ncurses() {
     unpack 'ncurses-*.t*'
 
@@ -1133,10 +1199,10 @@ pkg_ncurses() {
 
     ln -sfv libncursesw.so /usr/lib/libcurses.so
 
-    cp -v -R doc -T /usr/share/doc/ncurses-6.5-20250809
+    cp -v -R doc -T /usr/share/doc/ncurses-6.6
 }
 
-# 8.32. Sed-4.9
+# 8.34 Sed-4.10
 pkg_sed() {
     unpack 'sed-*.tar.*'
 
@@ -1151,11 +1217,10 @@ pkg_sed() {
     fi
 
     make install
-    install -d -m755           /usr/share/doc/sed-4.9
-    install -m644 doc/sed.html /usr/share/doc/sed-4.9
+    install -vDm644 doc/sed.html -t /usr/share/doc/sed-4.10
 }
 
-# 8.33. Psmisc-23.7
+# 8.35 Psmisc-23.7
 pkg_psmisc() {
     unpack 'psmisc-*.tar.*'
 
@@ -1170,13 +1235,13 @@ pkg_psmisc() {
     make install
 }
 
-# 8.34. Gettext-0.26
+# 8.36 Gettext-1.0
 pkg_gettext() {
     unpack 'gettext-*.tar.*'
 
     ./configure --prefix=/usr    \
                 --disable-static \
-                --docdir=/usr/share/doc/gettext-0.26
+                --docdir=/usr/share/doc/gettext-1.0
 
     make
 
@@ -1188,7 +1253,7 @@ pkg_gettext() {
     chmod -v 0755 /usr/lib/preloadable_libintl.so
 }
 
-# 8.35. Bison-3.8.2
+# 8.37 Bison-3.8.2
 pkg_bison() {
     unpack 'bison-*.tar.*'
 
@@ -1203,7 +1268,7 @@ pkg_bison() {
     make install
 }
 
-# 8.36. Grep-3.12
+# 8.38 Grep-3.12
 pkg_grep() {
     unpack 'grep-*.tar.*'
 
@@ -1220,7 +1285,7 @@ pkg_grep() {
     make install
 }
 
-# 8.37. Bash-5.3
+# 8.39 Bash-5.3
 pkg_bash() {
     unpack 'bash-*.tar.*'
 
@@ -1246,7 +1311,7 @@ EOF
     make install
 }
 
-# 8.38. Libtool-2.5.4
+# 8.40 Libtool-2.6.2
 pkg_libtool() {
     unpack 'libtool-*.tar.*'
 
@@ -1263,7 +1328,7 @@ pkg_libtool() {
     rm -fv /usr/lib/libltdl.a
 }
 
-# 8.39. GDBM-1.26
+# 8.41 GDBM-1.26
 pkg_gdbm() {
     unpack 'gdbm-*.tar.*'
 
@@ -1280,7 +1345,7 @@ pkg_gdbm() {
     make install
 }
 
-# 8.40. Gperf-3.3
+# 8.42 Gperf-3.3
 pkg_gperf() {
     unpack 'gperf-*.tar.*'
 
@@ -1295,13 +1360,13 @@ pkg_gperf() {
     make install
 }
 
-# 8.41. Expat-2.7.3
+# 8.43 Expat-2.8.3
 pkg_expat() {
     unpack 'expat-*.tar.*'
 
     ./configure --prefix=/usr    \
                 --disable-static \
-                --docdir=/usr/share/doc/expat-2.7.3
+                --docdir=/usr/share/doc/expat-2.8.3
 
     make
 
@@ -1311,10 +1376,10 @@ pkg_expat() {
 
     make install
 
-    install -v -m644 doc/*.{html,css} /usr/share/doc/expat-2.7.3
+    install -v -m644 doc/*.{html,css} /usr/share/doc/expat-2.8.3
 }
 
-# 8.42. Inetutils-2.6
+# 8.44 Inetutils-2.8
 pkg_inetutils() {
     unpack 'inetutils-*.tar.*'
 
@@ -1342,7 +1407,7 @@ pkg_inetutils() {
     mv -v /usr/{,s}bin/ifconfig
 }
 
-# 8.43. Less-685
+# 8.45 Less-704
 pkg_less() {
     unpack 'less-*.tar.*'
 
@@ -1357,7 +1422,7 @@ pkg_less() {
     make install
 }
 
-# 8.44. Perl-5.42.0
+# 8.46 Perl-5.44.0
 pkg_perl() {
     unpack 'perl-*.tar.*'
 
@@ -1367,12 +1432,12 @@ pkg_perl() {
     sh Configure -des                                          \
                  -D prefix=/usr                                \
                  -D vendorprefix=/usr                          \
-                 -D privlib=/usr/lib/perl5/5.42/core_perl      \
-                 -D archlib=/usr/lib/perl5/5.42/core_perl      \
-                 -D sitelib=/usr/lib/perl5/5.42/site_perl      \
-                 -D sitearch=/usr/lib/perl5/5.42/site_perl     \
-                 -D vendorlib=/usr/lib/perl5/5.42/vendor_perl  \
-                 -D vendorarch=/usr/lib/perl5/5.42/vendor_perl \
+                 -D privlib=/usr/lib/perl5/5.44/core_perl      \
+                 -D archlib=/usr/lib/perl5/5.44/core_perl      \
+                 -D sitelib=/usr/lib/perl5/5.44/site_perl      \
+                 -D sitearch=/usr/lib/perl5/5.44/site_perl     \
+                 -D vendorlib=/usr/lib/perl5/5.44/vendor_perl  \
+                 -D vendorarch=/usr/lib/perl5/5.44/vendor_perl \
                  -D man1dir=/usr/share/man/man1                \
                  -D man3dir=/usr/share/man/man3                \
                  -D pager="/usr/bin/less -isR"                 \
@@ -1389,40 +1454,7 @@ pkg_perl() {
     unset BUILD_ZLIB BUILD_BZIP2
 }
 
-# 8.45. XML::Parser-2.47
-pkg_xml_parser() {
-    unpack 'XML-Parser-*.tar.*'
-
-    perl Makefile.PL
-
-    make
-
-    if want_tests; then
-        make test
-    fi
-
-    make install
-}
-
-# 8.46. Intltool-0.51.0
-pkg_intltool() {
-    unpack 'intltool-*.tar.*'
-
-    sed -i 's:\\\${:\\\$\\{:' intltool-update.in
-
-    ./configure --prefix=/usr
-
-    make
-
-    if want_tests; then
-        make check
-    fi
-
-    make install
-    install -v -Dm644 doc/I18N-HOWTO /usr/share/doc/intltool-0.51.0/I18N-HOWTO
-}
-
-# 8.47. Autoconf-2.72
+# 8.47 Autoconf-2.73
 pkg_autoconf() {
     unpack 'autoconf-*.tar.*'
 
@@ -1437,7 +1469,7 @@ pkg_autoconf() {
     make install
 }
 
-# 8.48. Automake-1.18.1
+# 8.48 Automake-1.18.1
 pkg_automake() {
     unpack 'automake-*.tar.*'
 
@@ -1452,7 +1484,7 @@ pkg_automake() {
     make install
 }
 
-# 8.49. OpenSSL-3.6.0
+# 8.49 OpenSSL-4.0.1
 pkg_openssl() {
     unpack 'openssl-*.tar.*'
 
@@ -1465,18 +1497,17 @@ pkg_openssl() {
     make
 
     if want_tests; then
-        HARNESS_JOBS=$(nproc) make test
+        make test
     fi
 
-    sed -i '/INSTALL_LIBS/s/libcrypto.a libssl.a//' Makefile
-    make MANSUFFIX=ssl install
+    make INSTALL_LIBS= MANSUFFIX=ssl install
 
-    mv -v /usr/share/doc/openssl /usr/share/doc/openssl-3.6.0
+    mv -v /usr/share/doc/openssl /usr/share/doc/openssl-4.0.1
 
-    cp -vfr doc/* /usr/share/doc/openssl-3.6.0
+    cp -vfr doc/* /usr/share/doc/openssl-4.0.1
 }
 
-# 8.50. Libelf from Elfutils-0.193
+# 8.50 Libelf from Elfutils-0.195
 pkg_libelf() {
     unpack 'elfutils-*.tar.*'
 
@@ -1484,7 +1515,8 @@ pkg_libelf() {
                 --disable-debuginfod \
                 --enable-libdebuginfod=dummy
 
-    make
+    make -C lib
+    make -C libelf
 
     if want_tests; then
         make -k check
@@ -1495,7 +1527,7 @@ pkg_libelf() {
     rm /usr/lib/libelf.a
 }
 
-# 8.51. Libffi-3.5.2
+# 8.51 Libffi-3.8.0
 pkg_libffi() {
     unpack 'libffi-*.tar.*'
 
@@ -1512,13 +1544,13 @@ pkg_libffi() {
     make install
 }
 
-# 8.52. Sqlite-3500400
+# 8.52 Sqlite-3530400
 pkg_sqlite() {
     unpack 'sqlite-autoconf-*.tar.*'
 
-    tar -xf ../sqlite-doc-3500400.tar.xz
+    python3 -m zipfile -e ../sqlite-doc-3530400.zip .
 
-    ./configure --prefix=/usr    \
+    ./configure --prefix=/usr     \
                 --disable-static  \
                 --enable-fts{4,5} \
                 CPPFLAGS="-D SQLITE_ENABLE_COLUMN_METADATA=1 \
@@ -1530,13 +1562,31 @@ pkg_sqlite() {
 
     make install
 
-    install -v -m755 -d /usr/share/doc/sqlite-3.50.4
-    cp -v -R sqlite-doc-3500400/* /usr/share/doc/sqlite-3.50.4
+    cp -v -R sqlite-doc-3530400 -T /usr/share/doc/sqlite-3.53.4
 }
 
-# 8.53. Python-3.14.0
+# 8.53 mpdecimal-4.0.1
+pkg_mpdecimal() {
+    unpack 'mpdecimal-*.tar.*'
+
+    ./configure --prefix=/usr    \
+                --disable-static \
+                --docdir=/usr/share/doc/mpdecimal-4.0.1
+
+    make
+
+    if want_tests; then
+        make check_local
+    fi
+
+    make install
+}
+
+# 8.54 Python-3.14.7
 pkg_python() {
     unpack 'Python-*.tar.*'
+
+    patch -Np1 -i ../Python-3.14.7-openssl_4-1.patch
 
     ./configure --prefix=/usr          \
                 --enable-shared        \
@@ -1558,16 +1608,16 @@ root-user-action = ignore
 disable-pip-version-check = true
 EOF
 
-    install -v -dm755 /usr/share/doc/python-3.14.0/html
+    install -v -dm755 /usr/share/doc/python-3.14.7/html
 
     tar --strip-components=1  \
         --no-same-owner       \
         --no-same-permissions \
-        -C /usr/share/doc/python-3.14.0/html \
-        -xvf ../python-3.14.0-docs-html.tar.bz2
+        -C /usr/share/doc/python-3.14.7/html \
+        -xvf ../python-3.14.7-docs-html.tar.bz2
 }
 
-# 8.54. Flit-Core-3.12.0
+# 8.55 Flit-Core-4.0.2
 pkg_flit_core() {
     unpack 'flit_core-*.tar.*'
 
@@ -1576,7 +1626,7 @@ pkg_flit_core() {
     pip3 install --no-index --find-links dist flit_core
 }
 
-# 8.55. Packaging-25.0
+# 8.56 Packaging-26.3
 pkg_packaging() {
     unpack 'packaging-*.tar.*'
 
@@ -1585,7 +1635,7 @@ pkg_packaging() {
     pip3 install --no-index --find-links dist packaging
 }
 
-# 8.56. Wheel-0.46.1
+# 8.57 Wheel-0.48.0
 pkg_wheel() {
     unpack 'wheel-*.tar.*'
 
@@ -1594,7 +1644,7 @@ pkg_wheel() {
     pip3 install --no-index --find-links dist wheel
 }
 
-# 8.57. Setuptools-80.9.0
+# 8.58 Setuptools-84.0.0
 pkg_setuptools() {
     unpack 'setuptools-*.tar.*'
 
@@ -1603,25 +1653,7 @@ pkg_setuptools() {
     pip3 install --no-index --find-links dist setuptools
 }
 
-# 8.58. Ninja-1.13.1
-pkg_ninja() {
-    unpack 'ninja-*.tar.*'
-
-    sed -i '/int Guess/a \
-      int   j = 0;\
-      char* jobs = getenv( "NINJAJOBS" );\
-      if ( jobs != NULL ) j = atoi( jobs );\
-      if ( j > 0 ) return j;\
-    ' src/ninja.cc
-
-    python3 configure.py --bootstrap --verbose
-
-    install -vm755 ninja /usr/bin/
-    install -vDm644 misc/bash-completion /usr/share/bash-completion/completions/ninja
-    install -vDm644 misc/zsh-completion  /usr/share/zsh/site-functions/_ninja
-}
-
-# 8.59. Meson-1.9.1
+# 8.59 Meson-1.12.0
 pkg_meson() {
     unpack 'meson-*.tar.*'
 
@@ -1632,7 +1664,7 @@ pkg_meson() {
     install -vDm644 data/shell-completions/zsh/_meson /usr/share/zsh/site-functions/_meson
 }
 
-# 8.60. Kmod-34.2
+# 8.60 Kmod-34.2
 pkg_kmod() {
     unpack 'kmod-*.tar.*'
 
@@ -1648,17 +1680,16 @@ pkg_kmod() {
     ninja install
 }
 
-# 8.61. Coreutils-9.8
+# 8.61 Coreutils-9.11
 pkg_coreutils() {
     unpack 'coreutils-*.tar.*'
 
-    patch -Np1 -i ../coreutils-9.8-i18n-2.patch
+    patch -Np1 -i ../coreutils-9.11-i18n-1.patch
 
     autoreconf -fv
     automake -af
     FORCE_UNSAFE_CONFIGURE=1 ./configure \
-                --prefix=/usr            \
-                --enable-no-install-program=kill,uptime
+                --prefix=/usr
 
     make
 
@@ -1682,7 +1713,7 @@ pkg_coreutils() {
     sed -i 's/"1"/"8"/' /usr/share/man/man8/chroot.8
 }
 
-# 8.62. Diffutils-3.12
+# 8.62 Diffutils-3.12
 pkg_diffutils() {
     unpack 'diffutils-*.tar.*'
 
@@ -1697,30 +1728,7 @@ pkg_diffutils() {
     make install
 }
 
-# 8.63. Gawk-5.3.2
-pkg_gawk() {
-    unpack 'gawk-*.tar.*'
-
-    sed -i 's/extras//' Makefile.in
-
-    ./configure --prefix=/usr
-
-    make
-
-    if want_tests; then
-        chown -R tester .
-        su tester -c "PATH=$PATH make check"
-    fi
-
-    rm -f /usr/bin/gawk-5.3.2
-    make install
-
-    ln -sv gawk.1 /usr/share/man/man1/awk.1
-
-    install -vDm644 doc/{awkforai.txt,*.{eps,pdf,jpg}} -t /usr/share/doc/gawk-5.3.2
-}
-
-# 8.64. Findutils-4.10.0
+# 8.63 Findutils-4.11.0
 pkg_findutils() {
     unpack 'findutils-*.tar.*'
 
@@ -1730,20 +1738,20 @@ pkg_findutils() {
 
     if want_tests; then
         chown -R tester .
-        su tester -c "PATH=$PATH make check"
+        su tester -c "PATH=$PATH make check -k"
     fi
 
     make install
 }
 
-# 8.65. Groff-1.23.0
+# 8.64 Groff-1.24.1
 pkg_groff() {
     unpack 'groff-*.tar.*'
 
     # COURSE: the book asks you to fill in <paper_size>; LFS_PAPER_SIZE does it.
     PAGE=$LFS_PAPER_SIZE ./configure --prefix=/usr
 
-    make
+    make -j1
 
     if want_tests; then
         make check
@@ -1752,24 +1760,78 @@ pkg_groff() {
     make install
 }
 
-# 8.66. GRUB-2.12
+# 8.65 GRUB-2.14
+#
+# COURSE: hand-written, not generated.  The book splits GRUB into three
+# mutually-exclusive boot methods (BIOS, 64-bit UEFI, 32-bit UEFI) and says:
+# "You may skip other sections to go to the boot method you need.  If in doubt,
+# you may follow all of the sections at the cost of extra build time."  GRUB
+# cannot build for all of them at once, hence the make clean between sections.
+#
+# This course's QEMU guest boots OVMF, i.e. 64-bit UEFI (see course_INTEL_setup.sh,
+# which loads OVMF_CODE_4M.fd on pflash).  So the default below builds the BIOS
+# section (the book's baseline, and what gives you grub-mkconfig et al.) plus
+# 64-bit UEFI, and skips 32-bit UEFI, which nothing in this course uses.
+# Override with, e.g.:  LFS_GRUB_TARGETS="bios uefi64 uefi32"
 pkg_grub() {
     unpack 'grub-*.tar.*'
 
-    echo depends bli part_gpt > grub-core/extra_deps.lst
+    # The book puts this in a Warning box: GRUB is a bootloader, and aggressive
+    # optimisation breaks its low-level code.  Harmless if they were never set.
+    unset {C,CPP,CXX,LD}FLAGS
 
-    ./configure --prefix=/usr     \
-                --sysconfdir=/etc \
-                --disable-efiemu  \
-                --disable-werror
+    if grub_target bios; then
+        say "  GRUB 8.65.1 - for BIOS"
 
-    make
+        sed 's/--image-base/--nonexist-linker-option/' -i configure
 
-    make install
-    mv -v /etc/bash_completion.d/grub /usr/share/bash-completion/completions
+        ./configure --prefix=/usr     \
+                    --sysconfdir=/etc \
+                    --disable-efiemu  \
+                    --disable-werror
+
+        make
+
+        make install
+    fi
+
+    if grub_target uefi64; then
+        say "  GRUB 8.65.2 - for 64-bit UEFI"
+
+        # A no-op the first time through if the BIOS section was skipped.
+        make clean || true
+
+        ./configure --prefix=/usr       \
+                    --sysconfdir=/etc   \
+                    --target=x86_64     \
+                    --with-platform=efi \
+                    --disable-efiemu    \
+                    --disable-werror
+
+        make
+
+        make install
+    fi
+
+    if grub_target uefi32; then
+        say "  GRUB 8.65.3 - for 32-bit UEFI"
+
+        make clean || true
+
+        ./configure --prefix=/usr       \
+                    --sysconfdir=/etc   \
+                    --target=i386       \
+                    --with-platform=efi \
+                    --disable-efiemu    \
+                    --disable-werror
+
+        make
+
+        make install
+    fi
 }
 
-# 8.67. Gzip-1.14
+# 8.66 Gzip-1.14
 pkg_gzip() {
     unpack 'gzip-*.tar.*'
 
@@ -1784,7 +1846,7 @@ pkg_gzip() {
     make install
 }
 
-# 8.68. IPRoute2-6.17.0
+# 8.67 IPRoute2-7.1.0
 pkg_iproute2() {
     unpack 'iproute2-*.tar.*'
 
@@ -1795,25 +1857,32 @@ pkg_iproute2() {
 
     make SBINDIR=/usr/sbin install
 
-    install -vDm644 COPYING README* -t /usr/share/doc/iproute2-6.17.0
+    install -vDm644 COPYING README* -t /usr/share/doc/iproute2-7.1.0
 }
 
-# 8.69. Kbd-2.9.0
+# 8.68 Kbd-2.10.0
 pkg_kbd() {
     unpack 'kbd-*.tar.*'
 
-    patch -Np1 -i ../kbd-2.9.0-backspace-1.patch
+    patch -Np1 -i ../kbd-2.10.0-backspace-1.patch
+
+    sed -i '/RESIZECONS_PROGS=/s/yes/no/' configure
+    sed -i 's/resizecons.8 //' docs/man/man8/Makefile.in
 
     ./configure --prefix=/usr --disable-vlock
 
     make
 
+    if want_tests; then
+        make check
+    fi
+
     make install
 
-    cp -R -v docs/doc -T /usr/share/doc/kbd-2.9.0
+    cp -R -v docs/doc -T /usr/share/doc/kbd-2.10.0
 }
 
-# 8.70. Libpipeline-1.5.8
+# 8.69 Libpipeline-1.5.8
 pkg_libpipeline() {
     unpack 'libpipeline-*.tar.*'
 
@@ -1824,7 +1893,7 @@ pkg_libpipeline() {
     make install
 }
 
-# 8.71. Make-4.4.1
+# 8.70 Make-4.4.1
 pkg_make() {
     unpack 'make-*.tar.*'
 
@@ -1840,7 +1909,7 @@ pkg_make() {
     make install
 }
 
-# 8.72. Patch-2.8
+# 8.71 Patch-2.8
 pkg_patch() {
     unpack 'patch-*.tar.*'
 
@@ -1855,9 +1924,11 @@ pkg_patch() {
     make install
 }
 
-# 8.73. Tar-1.35
+# 8.72 Tar-1.35
 pkg_tar() {
     unpack 'tar-*.tar.*'
+
+    patch -Np1 -i ../tar-1.35-acl_fix-1.patch
 
     FORCE_UNSAFE_CONFIGURE=1  \
     ./configure --prefix=/usr
@@ -1872,11 +1943,9 @@ pkg_tar() {
     make -C doc install-html docdir=/usr/share/doc/tar-1.35
 }
 
-# 8.74. Texinfo-7.2
+# 8.73 Texinfo-7.3
 pkg_texinfo() {
     unpack 'texinfo-*.tar.*'
-
-    sed 's/! $output_file eq/$output_file ne/' -i tp/Texinfo/Convert/*.pm
 
     ./configure --prefix=/usr
 
@@ -1898,7 +1967,7 @@ pkg_texinfo() {
     popd
 }
 
-# 8.75. Vim-9.1.1806
+# 8.74 Vim-9.2.1025
 pkg_vim() {
     unpack 'vim-*.tar.*'
 
@@ -1923,7 +1992,7 @@ pkg_vim() {
         ln -sv vim.1 $(dirname $L)/vi.1
     done
 
-    ln -sv ../vim/vim91/doc /usr/share/doc/vim-9.1.1806
+    ln -sv ../vim/vim92/doc /usr/share/doc/vim-9.2.1025
 
 cat > /etc/vimrc << "EOF"
 " Begin /etc/vimrc
@@ -1944,7 +2013,7 @@ endif
 EOF
 }
 
-# 8.76. MarkupSafe-3.0.3
+# 8.75 MarkupSafe-3.0.3
 pkg_markupsafe() {
     unpack 'markupsafe-*.tar.*'
 
@@ -1953,7 +2022,7 @@ pkg_markupsafe() {
     pip3 install --no-index --find-links dist Markupsafe
 }
 
-# 8.77. Jinja2-3.1.6
+# 8.76 Jinja2-3.1.6
 pkg_jinja2() {
     unpack 'jinja2-*.tar.*'
 
@@ -1962,84 +2031,75 @@ pkg_jinja2() {
     pip3 install --no-index --find-links dist Jinja2
 }
 
-# 8.78. Udev from Systemd-258.1
-pkg_udev() {
+# 8.77 Systemd-261.2
+pkg_systemd() {
     unpack 'systemd-[0-9]*.tar.*'
 
     sed -e 's/GROUP="render"/GROUP="video"/' \
         -e 's/GROUP="sgx", //'               \
         -i rules.d/50-udev-default.rules.in
 
-    sed -i '/systemd-sysctl/s/^/#/' rules.d/99-systemd.rules.in
-
-    sed -e '/NETWORK_DIRS/s/systemd/udev/' \
-        -i src/libsystemd/sd-network/network-util.h
-
     mkdir -p build
     cd       build
 
-    meson setup ..                  \
-          --prefix=/usr             \
-          --buildtype=release       \
-          -D mode=release           \
-          -D dev-kvm-mode=0660      \
-          -D link-udev-shared=false \
-          -D logind=false           \
-          -D vconsole=false
+    meson setup ..                \
+          --prefix=/usr           \
+          --buildtype=release     \
+          -D default-dnssec=no    \
+          -D firstboot=false      \
+          -D install-tests=false  \
+          -D ldconfig=false       \
+          -D sysusers=false       \
+          -D rpmmacrosdir=no      \
+          -D homed=disabled       \
+          -D man=disabled         \
+          -D mode=release         \
+          -D pamconfdir=no        \
+          -D dev-kvm-mode=0660    \
+          -D nobody-group=nogroup \
+          -D sysupdate=disabled   \
+          -D ukify=disabled       \
+          -D docdir=/usr/share/doc/systemd-261.2
 
-    export udev_helpers=$(grep "'name' :" ../src/udev/meson.build | \
-                          awk '{print $3}' | tr -d ",'" | grep -v 'udevadm')
+    ninja
 
-    ninja udevadm systemd-hwdb                                           \
-          $(ninja -n | grep -Eo '(src/(lib)?udev|rules.d|hwdb.d)/[^ ]*') \
-          $(realpath libudev.so --relative-to .)                         \
-          $udev_helpers
+    if want_tests; then
+        echo 'NAME="Linux From Scratch"' > /etc/os-release
+        unshare -m ninja test
+    fi
 
-    install -vm755 -d {/usr/lib,/etc}/udev/{hwdb.d,rules.d,network}
-    install -vm755 -d /usr/{lib,share}/pkgconfig
-    install -vm755 udevadm                             /usr/bin/
-    install -vm755 systemd-hwdb                        /usr/bin/udev-hwdb
-    ln      -svfn  ../bin/udevadm                      /usr/sbin/udevd
-    cp      -av    libudev.so{,*[0-9]}                 /usr/lib/
-    install -vm644 ../src/libudev/libudev.h            /usr/include/
-    install -vm644 src/libudev/*.pc                    /usr/lib/pkgconfig/
-    install -vm644 src/udev/*.pc                       /usr/share/pkgconfig/
-    install -vm644 ../src/udev/udev.conf               /etc/udev/
-    install -vm644 rules.d/* ../rules.d/README         /usr/lib/udev/rules.d/
-    install -vm644 $(find ../rules.d/*.rules \
-                          -not -name '*power-switch*') /usr/lib/udev/rules.d/
-    install -vm644 hwdb.d/*  ../hwdb.d/{*.hwdb,README} /usr/lib/udev/hwdb.d/
-    install -vm755 $udev_helpers                       /usr/lib/udev
-    install -vm644 ../network/99-default.link          /usr/lib/udev/network
+    ninja install
 
-    tar -xvf ../../udev-lfs-20230818.tar.xz
-    make -f udev-lfs-20230818/Makefile.lfs install
+    tar -xf ../../systemd-man-pages-261.2.tar.xz \
+        --no-same-owner --strip-components=1     \
+        -C /usr/share/man
 
-    tar -xf ../../systemd-man-pages-258.1.tar.xz                            \
-        --no-same-owner --strip-components=1                              \
-        -C /usr/share/man --wildcards '*/udev*' '*/libudev*'              \
-                                      '*/systemd.link.5'                  \
-                                      '*/systemd-'{hwdb,udevd.service}.8
+    systemd-machine-id-setup
 
-    sed 's|systemd/network|udev/network|'                                 \
-        /usr/share/man/man5/systemd.link.5                                \
-      > /usr/share/man/man5/udev.link.5
-
-    sed 's/systemd\(\\\?-\)/udev\1/' /usr/share/man/man8/systemd-hwdb.8   \
-                                   > /usr/share/man/man8/udev-hwdb.8
-
-    sed 's|lib.*udevd|sbin/udevd|'                                        \
-        /usr/share/man/man8/systemd-udevd.service.8                       \
-      > /usr/share/man/man8/udevd.8
-
-    rm /usr/share/man/man*/systemd*
-
-    unset udev_helpers
-
-    udev-hwdb update
+    systemctl preset-all
 }
 
-# 8.79. Man-DB-2.13.1
+# 8.78 D-Bus-1.16.2
+pkg_dbus() {
+    unpack 'dbus-*.tar.*'
+
+    mkdir build
+    cd    build
+
+    meson setup --prefix=/usr --buildtype=release --wrap-mode=nofallback ..
+
+    ninja
+
+    if want_tests; then
+        ninja test
+    fi
+
+    ninja install
+
+    ln -sfv /etc/machine-id /var/lib/dbus
+}
+
+# 8.79 Man-DB-2.13.1
 pkg_man_db() {
     unpack 'man-db-*.tar.*'
 
@@ -2050,9 +2110,7 @@ pkg_man_db() {
                 --enable-cache-owner=bin              \
                 --with-browser=/usr/bin/lynx          \
                 --with-vgrind=/usr/bin/vgrind         \
-                --with-grap=/usr/bin/grap             \
-                --with-systemdtmpfilesdir=            \
-                --with-systemdsystemunitdir=
+                --with-grap=/usr/bin/grap
 
     make
 
@@ -2063,15 +2121,16 @@ pkg_man_db() {
     make install
 }
 
-# 8.80. Procps-ng-4.0.5
+# 8.80 Procps-ng-4.0.7
 pkg_procps_ng() {
     unpack 'procps-ng-*.tar.*'
 
     ./configure --prefix=/usr                           \
-                --docdir=/usr/share/doc/procps-ng-4.0.5 \
+                --docdir=/usr/share/doc/procps-ng-4.0.7 \
                 --disable-static                        \
                 --disable-kill                          \
-                --enable-watch8bit
+                --enable-watch8bit                      \
+                --with-systemd
 
     make
 
@@ -2083,7 +2142,7 @@ pkg_procps_ng() {
     make install
 }
 
-# 8.81. Util-linux-2.41.2
+# 8.81 Util-linux-2.42.2
 pkg_util_linux() {
     unpack 'util-linux-*.tar.*'
 
@@ -2101,10 +2160,8 @@ pkg_util_linux() {
                 --disable-liblastlog2 \
                 --disable-static      \
                 --without-python      \
-                --without-systemd     \
-                --without-systemdsystemunitdir        \
                 ADJTIME_PATH=/var/lib/hwclock/adjtime \
-                --docdir=/usr/share/doc/util-linux-2.41.2
+                --docdir=/usr/share/doc/util-linux-2.42.2
 
     make
 
@@ -2118,7 +2175,7 @@ pkg_util_linux() {
     make install
 }
 
-# 8.82. E2fsprogs-1.47.3
+# 8.82 E2fsprogs-1.47.4
 pkg_e2fsprogs() {
     unpack 'e2fsprogs-*.tar.*'
 
@@ -2153,65 +2210,21 @@ pkg_e2fsprogs() {
     sed 's/metadata_csum_seed,//' -i /etc/mke2fs.conf
 }
 
-# 8.83. Sysklogd-2.7.2
-pkg_sysklogd() {
-    unpack 'sysklogd-*.tar.*'
-
-    ./configure --prefix=/usr      \
-                --sysconfdir=/etc  \
-                --runstatedir=/run \
-                --without-logger   \
-                --disable-static   \
-                --docdir=/usr/share/doc/sysklogd-2.7.2
-
-    make
-
-    make install
-
-cat > /etc/syslog.conf << "EOF"
-# Begin /etc/syslog.conf
-
-auth,authpriv.* -/var/log/auth.log
-*.*;auth,authpriv.none -/var/log/sys.log
-daemon.* -/var/log/daemon.log
-kern.* -/var/log/kern.log
-mail.* -/var/log/mail.log
-user.* -/var/log/user.log
-*.emerg *
-
-# Do not open any internet ports.
-secure_mode 2
-
-# End /etc/syslog.conf
-EOF
-}
-
-# 8.84. SysVinit-3.14
-pkg_sysvinit() {
-    unpack 'sysvinit-*.tar.*'
-
-    patch -Np1 -i ../sysvinit-3.14-consolidated-1.patch
-
-    make
-
-    make install
-}
-
 # ==============================================================================
-# 8.86. Stripping   (off unless LFS_STRIP=1 - see deviation 7)
+# 8.84 Stripping   (off unless LFS_STRIP=1 - see deviation 7)
 # ==============================================================================
 # The book's version of this hardcodes the exact soname of every library it
-# wants to protect (libstdc++.so.6.0.34 and friends).  Those change with every
+# wants to protect (libstdc++.so.6.0.36 and friends).  Those change with every
 # book revision, and a missing file under `set -e` would kill the run right at
 # the finish line, so the loops below tolerate a name that is not there.
 do_stripping() {
-    say "8.86. Stripping debugging symbols"
+    say "8.84 Stripping debugging symbols"
 
     save_usrlib="$(cd /usr/lib; ls ld-linux*[^g])
                  libc.so.6
                  libthread_db.so.1
                  libquadmath.so.0.0.0
-                 libstdc++.so.6.0.34
+                 libstdc++.so.6.0.36
                  libitm.so.1.0.0
                  libatomic.so.1.2.0"
 
@@ -2221,27 +2234,27 @@ do_stripping() {
         [ -f "/usr/lib/$LIB" ] || { warn "strip: no /usr/lib/$LIB, skipping"; continue; }
         objcopy --only-keep-debug --compress-debug-sections=zstd $LIB $LIB.dbg
         cp $LIB /tmp/$LIB
-        strip --strip-debug /tmp/$LIB
+        strip --strip-unneeded /tmp/$LIB
         objcopy --add-gnu-debuglink=$LIB.dbg /tmp/$LIB
         install -vm755 /tmp/$LIB /usr/lib
         rm /tmp/$LIB
     done
 
     online_usrbin="bash find strip"
-    online_usrlib="libbfd-2.45.so
-                   libsframe.so.2.0.0
+    online_usrlib="libbfd-2.47.20260726.so
+                   libsframe.so.3.0.0
                    libhistory.so.8.3
-                   libncursesw.so.6.5
+                   libncursesw.so.6.6
                    libm.so.6
                    libreadline.so.8.3
-                   libz.so.1.3.1
+                   libz.so.1.3.2
                    libzstd.so.1.5.7
                    $(cd /usr/lib; find libnss*.so* -type f)"
 
     for BIN in $online_usrbin; do
         [ -f "/usr/bin/$BIN" ] || { warn "strip: no /usr/bin/$BIN, skipping"; continue; }
         cp /usr/bin/$BIN /tmp/$BIN
-        strip --strip-debug /tmp/$BIN
+        strip --strip-unneeded /tmp/$BIN
         install -vm755 /tmp/$BIN /usr/bin
         rm /tmp/$BIN
     done
@@ -2249,7 +2262,7 @@ do_stripping() {
     for LIB in $online_usrlib; do
         [ -f "/usr/lib/$LIB" ] || { warn "strip: no /usr/lib/$LIB, skipping"; continue; }
         cp /usr/lib/$LIB /tmp/$LIB
-        strip --strip-debug /tmp/$LIB
+        strip --strip-unneeded /tmp/$LIB
         install -vm755 /tmp/$LIB /usr/lib
         rm /tmp/$LIB
     done
@@ -2260,7 +2273,7 @@ do_stripping() {
         case "$online_usrbin $online_usrlib $save_usrlib" in
             *$(basename $i)* )
                 ;;
-            * ) strip --strip-debug $i
+            * ) strip --strip-unneeded $i
                 ;;
         esac
     done
@@ -2269,10 +2282,10 @@ do_stripping() {
 }
 
 # ==============================================================================
-# 8.87. Cleaning Up
+# 8.85 Cleaning Up
 # ==============================================================================
 do_cleanup() {
-    say "8.87. Cleaning up"
+    say "8.85 Cleaning up"
 
     rm -rf /tmp/{*,.*}
 
@@ -2367,6 +2380,7 @@ preflight() {
 
     check_sources
 }
+
 # check_sources - resolve every package's tarball glob before building anything.
 #
 # Worth the two seconds.  The alternative is discovering a missing tarball forty
@@ -2400,9 +2414,9 @@ check_sources() {
         echo "    Re-fetch the list and the sources (phase 0):"
         echo
         echo "        cd $SOURCES"
-        echo "        wget -c https://www.linuxfromscratch.org/~xry111/lfs/view/arm64/wget-list-sysv"
-        echo "        wget -c https://www.linuxfromscratch.org/~xry111/lfs/view/arm64/md5sums"
-        echo "        wget -c --input-file=./wget-list-sysv --directory-prefix=$SOURCES"
+        echo "        wget -c https://www.linuxfromscratch.org/lfs/downloads/stable-systemd/wget-list"
+        echo "        wget -c https://www.linuxfromscratch.org/lfs/downloads/stable-systemd/md5sums"
+        echo "        wget -c --input-file=./wget-list --directory-prefix=$SOURCES"
         echo "        md5sum -c md5sums"
         echo
         echo "    Note the book's wget-list includes the .patch files too - if yours"
@@ -2411,7 +2425,6 @@ check_sources() {
     } >&2
     die "missing sources - see the list above"
 }
-
 
 build_one() {
     local name="$1" fn log start elapsed

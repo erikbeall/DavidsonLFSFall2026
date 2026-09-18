@@ -99,7 +99,11 @@ wget -c   https://www.linuxfromscratch.org/lfs/downloads/stable-systemd/wget-lis
 wget -c   https://www.linuxfromscratch.org/lfs/downloads/stable-systemd/md5sums
 
 # get all sources
-wget -c   --input-file=./wget-list-sysv --directory-prefix=$LFS/sources
+wget -c   --input-file=./wget-list --directory-prefix=$LFS/sources
+# NOTE: it is ./wget-list here (the systemd list fetched just above), NOT
+# wget-list-sysv - that is the arm64/SysV branch's filename.  The book's list
+# includes the .patch files as well as the tarballs; if yours has no patches in
+# it, you have the wrong or a trimmed list and Chapter 8 will fail partway in.
 # NOTE, this can take some time, feel free to open a second ssh localhost session and proceed with setting 
 # up the LFS installation target disk and come back to the md5sum verification step
 # really, the md5sum verification often exposes broken links which need to be followed up manually (so you learn how to do it)
