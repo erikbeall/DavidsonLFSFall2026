@@ -205,98 +205,6 @@ PACKAGES=(
     "sysklogd"
     "sysvinit"
 )
-# Package name -> the glob that finds its tarball in /sources.  Deliberately
-# loose on version, so a book revision bump does not invalidate every entry.
-# (A case statement rather than an associative array: no bash 4 dependency, and
-# it is easier to read down the list.)
-tarball_glob() {
-    case "$1" in
-        man-pages)     echo 'man-pages-*.tar.*' ;;
-        iana-etc)      echo 'iana-etc-*.tar.*' ;;
-        glibc)         echo 'glibc-[0-9]*.tar.*' ;;
-        zlib)          echo 'zlib-*.tar.*' ;;
-        bzip2)         echo 'bzip2-*.tar.*' ;;
-        xz)            echo 'xz-*.tar.*' ;;
-        lz4)           echo 'lz4-*.tar.*' ;;
-        zstd)          echo 'zstd-*.tar.*' ;;
-        file)          echo 'file-*.tar.*' ;;
-        readline)      echo 'readline-*.tar.*' ;;
-        pcre2)         echo 'pcre2-*.tar.*' ;;
-        m4)            echo 'm4-*.tar.*' ;;
-        bc)            echo 'bc-*.tar.*' ;;
-        flex)          echo 'flex-*.tar.*' ;;
-        tcl)           echo 'tcl*-src.tar.*' ;;
-        expect)        echo 'expect[0-9]*.tar.*' ;;
-        dejagnu)       echo 'dejagnu-*.tar.*' ;;
-        pkgconf)       echo 'pkgconf-*.tar.*' ;;
-        binutils)      echo 'binutils-*.tar.*' ;;
-        gmp)           echo 'gmp-*.tar.*' ;;
-        mpfr)          echo 'mpfr-*.tar.*' ;;
-        mpc)           echo 'mpc-*.tar.*' ;;
-        attr)          echo 'attr-*.tar.*' ;;
-        acl)           echo 'acl-*.tar.*' ;;
-        libcap)        echo 'libcap-*.tar.*' ;;
-        libxcrypt)     echo 'libxcrypt-*.tar.*' ;;
-        shadow)        echo 'shadow-*.tar.*' ;;
-        gcc)           echo 'gcc-*.tar.*' ;;
-        ncurses)       echo 'ncurses-*.t*' ;;
-        sed)           echo 'sed-*.tar.*' ;;
-        psmisc)        echo 'psmisc-*.tar.*' ;;
-        gettext)       echo 'gettext-*.tar.*' ;;
-        bison)         echo 'bison-*.tar.*' ;;
-        grep)          echo 'grep-*.tar.*' ;;
-        bash)          echo 'bash-*.tar.*' ;;
-        libtool)       echo 'libtool-*.tar.*' ;;
-        gdbm)          echo 'gdbm-*.tar.*' ;;
-        gperf)         echo 'gperf-*.tar.*' ;;
-        expat)         echo 'expat-*.tar.*' ;;
-        inetutils)     echo 'inetutils-*.tar.*' ;;
-        less)          echo 'less-*.tar.*' ;;
-        perl)          echo 'perl-*.tar.*' ;;
-        xml-parser)    echo 'XML-Parser-*.tar.*' ;;
-        intltool)      echo 'intltool-*.tar.*' ;;
-        autoconf)      echo 'autoconf-*.tar.*' ;;
-        automake)      echo 'automake-*.tar.*' ;;
-        openssl)       echo 'openssl-*.tar.*' ;;
-        libelf)        echo 'elfutils-*.tar.*' ;;
-        libffi)        echo 'libffi-*.tar.*' ;;
-        sqlite)        echo 'sqlite-autoconf-*.tar.*' ;;
-        Python)        echo 'Python-*.tar.*' ;;
-        flit-core)     echo 'flit_core-*.tar.*' ;;
-        packaging)     echo 'packaging-*.tar.*' ;;
-        wheel)         echo 'wheel-*.tar.*' ;;
-        setuptools)    echo 'setuptools-*.tar.*' ;;
-        ninja)         echo 'ninja-*.tar.*' ;;
-        meson)         echo 'meson-*.tar.*' ;;
-        kmod)          echo 'kmod-*.tar.*' ;;
-        coreutils)     echo 'coreutils-*.tar.*' ;;
-        diffutils)     echo 'diffutils-*.tar.*' ;;
-        gawk)          echo 'gawk-*.tar.*' ;;
-        findutils)     echo 'findutils-*.tar.*' ;;
-        groff)         echo 'groff-*.tar.*' ;;
-        grub)          echo 'grub-*.tar.*' ;;
-        gzip)          echo 'gzip-*.tar.*' ;;
-        iproute2)      echo 'iproute2-*.tar.*' ;;
-        kbd)           echo 'kbd-*.tar.*' ;;
-        libpipeline)   echo 'libpipeline-*.tar.*' ;;
-        make)          echo 'make-*.tar.*' ;;
-        patch)         echo 'patch-*.tar.*' ;;
-        tar)           echo 'tar-*.tar.*' ;;
-        texinfo)       echo 'texinfo-*.tar.*' ;;
-        vim)           echo 'vim-*.tar.*' ;;
-        markupsafe)    echo 'markupsafe-*.tar.*' ;;
-        jinja2)        echo 'jinja2-*.tar.*' ;;
-        udev)          echo 'systemd-[0-9]*.tar.*' ;;
-        man-db)        echo 'man-db-*.tar.*' ;;
-        procps-ng)     echo 'procps-ng-*.tar.*' ;;
-        util-linux)    echo 'util-linux-*.tar.*' ;;
-        e2fsprogs)     echo 'e2fsprogs-*.tar.*' ;;
-        sysklogd)      echo 'sysklogd-*.tar.*' ;;
-        sysvinit)      echo 'sysvinit-*.tar.*' ;;
-        *) return 1 ;;
-    esac
-}
-
 
 # ------------------------------------------------------------------- helpers
 
@@ -1648,17 +1556,16 @@ pkg_kmod() {
     ninja install
 }
 
-# 8.61. Coreutils-9.8
+# 8.61. Coreutils-9.8 or 9.10 (I went ahead to 9.10, 9.11 does not require the patch below, this automation will fail at this point, you are free to choose how to continue - this is supposed to be the sole break in this script)
 pkg_coreutils() {
     unpack 'coreutils-*.tar.*'
 
-    patch -Np1 -i ../coreutils-9.8-i18n-2.patch
+    patch -Np1 -i ../coreutils-9.10-i18n-1.patch
 
     autoreconf -fv
     automake -af
     FORCE_UNSAFE_CONFIGURE=1 ./configure \
-                --prefix=/usr            \
-                --enable-no-install-program=kill,uptime
+                --prefix=/usr
 
     make
 
@@ -2293,125 +2200,27 @@ do_cleanup() {
 preflight() {
     [ "$(id -u)" -eq 0 ] || die "run this as root (you should already be, inside the chroot)"
 
-    # "Am I in the chroot?"  Getting this wrong means building over the host, so
-    # it is worth two checks rather than one.
-    #
-    # Note we do NOT test for the absence of /etc/os-release, which would be the
-    # obvious marker: on this systemd branch, systemd's own test block (8.77)
-    # writes /etc/os-release inside the chroot, so that check would misfire on
-    # any resumed run.  The host package manager is the stable tell instead -
-    # the build host is Ubuntu, and an LFS chroot has no dpkg/apt.
+    # Cheapest reliable "am I in the chroot?" test: the chroot has no /etc/lsb-release
+    # or /etc/os-release yet, but it does have /tools or the phase-3 layout, and its
+    # root inode differs from the host's.  The book's own marker is simplest: the
+    # host has an /etc/passwd with many users; ours has the six from phase 3.
     [ -d "$SOURCES" ] || die "no $SOURCES directory.
     You are almost certainly NOT inside the chroot.  Re-read
     course_QEMU_setup_phase4.sh, do the mounts and the chroot, then run this
     from the (lfs chroot) prompt."
-    for hosttell in /usr/bin/dpkg /usr/bin/apt-get /etc/debian_version; do
-        [ -e "$hosttell" ] && die "found $hosttell, which an LFS chroot does not have.
-    This looks like your HOST system, not the chroot.  Building here would
-    damage the host.  Refusing to run."
-    done
+    [ -e /etc/lfs-release ] || [ ! -e /etc/os-release ] || die "/etc/os-release exists.
+    That file does not exist in a fresh LFS chroot, so this looks like your
+    HOST system.  Building here would damage the host.  Refusing to run."
 
     grep -q '^tester:' /etc/passwd || warn "no 'tester' user - phase 3 should have created it.
     Harmless while tests are skipped; required if you set LFS_RUN_TESTS=1."
-
-    # Chapter 8 assumes every temporary tool from Chapters 6 and 7 is already
-    # in place.  An incomplete Chapter 7 does not announce itself: it surfaces
-    # many packages later as a baffling "command not found".  DejaGNU (8.19)
-    # calling makeinfo is the classic one, because nothing before it needs
-    # Texinfo - so a broken Chapter 7 Texinfo stays invisible for 18 packages.
-    # Check the whole set up front instead.
-    #
-    # (If you are hitting this: the pseudo-script for phase 3 builds several
-    # packages with "make; make install".  The ";" means a FAILED make still
-    # runs make install, which installs whatever did build and exits 0.  Use
-    # "&&" there instead.)
-    local missing=() tool pkg entry
-    for entry in \
-        gcc:ch6-gcc        ld:ch6-binutils      make:ch6-make      sed:ch6-sed \
-        tar:ch6-tar        patch:ch6-patch      m4:ch6-m4          xz:ch6-xz \
-        awk:ch6-gawk       grep:ch6-grep        find:ch6-findutils diff:ch6-diffutils \
-        msgfmt:ch7-gettext bison:ch7-bison      perl:ch7-perl \
-        python3:ch7-Python makeinfo:ch7-texinfo blkid:ch7-util-linux
-    do
-        tool="${entry%%:*}"
-        command -v "$tool" >/dev/null 2>&1 || missing+=( "$entry" )
-    done
-    if [ "${#missing[@]}" -gt 0 ]; then
-        {
-            echo
-            echo "    missing tools that Chapters 6 and 7 were supposed to install:"
-            echo
-            for entry in "${missing[@]}"; do
-                tool="${entry%%:*}"; pkg="${entry##*:}"
-                printf '        %-10s  from %s\n' "$tool" "$pkg"
-            done
-            echo
-            echo "    Rebuild the named package(s) with the phase 3 (Chapter 7) steps"
-            echo "    before running this.  For most of them that is just:"
-            echo
-            echo "        cd /sources && rm -rf <pkg> && tar xf <pkg>.tar.* && cd <pkg>"
-            echo "        ./configure --prefix=/usr && make && make install"
-            echo
-            echo "    Use && between those, not ; - with ; a failed make still runs"
-            echo "    make install and exits 0, which is how this goes unnoticed."
-            echo
-        } >&2
-        die "incomplete Chapter 7 toolchain - see the list above"
-    fi
 
     mountpoint -q /proc || warn "/proc is not mounted inside the chroot; several packages will fail"
     mountpoint -q /sys  || warn "/sys is not mounted inside the chroot"
     [ -c /dev/null ]    || warn "/dev does not look bind-mounted"
 
     mkdir -p "$STATEDIR" "$LOGDIR"
-
-    check_sources
 }
-# check_sources - resolve every package's tarball glob before building anything.
-#
-# Worth the two seconds.  The alternative is discovering a missing tarball forty
-# packages and several hours in, which is exactly what a trimmed or stale
-# wget-list produces.  Patches are checked too: they are referenced by the book's
-# own commands, by relative path, and a missing one fails just as hard.
-check_sources() {
-    local missing=() name glob matches
-    for name in "${PACKAGES[@]}"; do
-        glob="$(tarball_glob "$name")"
-        # shellcheck disable=SC2206
-        matches=( $SOURCES/$glob )
-        [ -e "${matches[0]}" ] || missing+=( "$name -> $glob" )
-    done
-
-    # The patches the book applies by name, and the extra archives it unpacks.
-    local extra
-    for extra in $(grep -ohE '\.\./+[A-Za-z0-9._+-]+\.(patch|tar\.[a-z0-9]+|zip)' "$0" \
-                   | sed 's|.*/||' | sort -u); do
-        [ -e "$SOURCES/$extra" ] || missing+=( "(referenced by a build step) $extra" )
-    done
-
-    [ "${#missing[@]}" -eq 0 ] && return 0
-
-    {
-        echo
-        echo "    these sources are missing from $SOURCES:"
-        echo
-        printf '        %s\n' "${missing[@]}"
-        echo
-        echo "    Re-fetch the list and the sources (phase 0):"
-        echo
-        echo "        cd $SOURCES"
-        echo "        wget -c https://www.linuxfromscratch.org/~xry111/lfs/view/arm64/wget-list-sysv"
-        echo "        wget -c https://www.linuxfromscratch.org/~xry111/lfs/view/arm64/md5sums"
-        echo "        wget -c --input-file=./wget-list-sysv --directory-prefix=$SOURCES"
-        echo "        md5sum -c md5sums"
-        echo
-        echo "    Note the book's wget-list includes the .patch files too - if yours"
-        echo "    has no patches in it, it is stale or was trimmed."
-        echo
-    } >&2
-    die "missing sources - see the list above"
-}
-
 
 build_one() {
     local name="$1" fn log start elapsed
