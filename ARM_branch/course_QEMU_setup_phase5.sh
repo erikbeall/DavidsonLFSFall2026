@@ -13,6 +13,8 @@ exit 0
 mountpoint -q $LFS/dev/shm && umount $LFS/dev/shm
 umount $LFS/dev/pts
 umount $LFS/{sys,proc,run,dev}
+
+#### SHUTDOWN THE VM at this point
 # make a new overlay
 qemu-img create -f qcow2 -b lfs-target-phase4.qcow2 -F qcow2 lfs-target-phase5.qcow2
 chmod -w lfs-target-phase4.qcow2
@@ -258,20 +260,69 @@ make defconfig
 # for example, we'll want plan9 file support (so we can mounthost file dirs in qemu - there are other ways to do it, but its a good one to explore)
 ##### EXAMPLE CONFIG OPTIONS - these should end up set when you inspect .config, but are findable via the menu - I pretty much _always_ walk the entire
 ##### menu, it doesn't take that long, nearly all options that are set can be left and nearly all that are unset can be left
-## for plan9 filesys support
-CONFIG_9P_FS=y
-CONFIG_9P_FS_POSIX_ACL=y
-CONFIG_9P_FS_SECURITY=y
-CONFIG_NETWORK_FILESYSTEMS=y
-CONFIG_NET_9P=y
-CONFIG_NET_9P_DEBUG=y
-CONFIG_NET_9P_VIRTIO=y
-## For qemu in aarch64, also add:
-CONFIG_PCI=y
-CONFIG_PCI_HOST_COMMON=y
-CONFIG_PCI_HOST_GENERIC=y
-CONFIG_VIRTIO_PCI=y
-CONFIG_VIRTIO_BLK=y
-CONFIG_VIRTIO_NET=y
+# see the kernel_options_aarch64.txt file for a complete list
+# WORK: use unix shell utilities to quickly parse and find what is missing
+# also, will now need to append the relevant console with -append "console=ttyAMA0" (ttyS0 on x86)
 
+make
+# Optional - there are numerous modules turned on by defconfig but it should be safe to skip this (try skipping it)
+make modules_install
+
+## setup the /boot folder - basename of the target should be either vmlinuz or Image, typically should contain the version and system tag as well:
+# however, here the arm64 instructions at LFS are incorrect, inspect the arch/<> directories to find what was built
+
+cp -iv arch/arm64/boot/Image /boot/vmlinuz-6.17.3-lfs-arm64
+# System.map for debugging
+cp -iv System.map /boot/System.map-6.17.3
+# good to enable /proc/config, but if mounting this disk on a different base (with different kernel/config), copy the .config
+# note however, if its to be a shared system, it would be good to NOT enable /proc/config (and also ensure /boot is NOT readable)
+cp -iv .config /boot/config-6.17.3
+# documentation
+cp -r Documentation -T /usr/share/doc/linux-6.17.3
+
+# keep the linux source as is, you can quickly modify it by running make menuconfig and make
+
+## Set up grub - note the naming convention differs (e.g. (hd0,1) instead of /dev/vda1)
+# first, assume (you can check with fdisk -l) there is an EFI partition present and mount it
+mkdir -pv /boot/efi
+mount /dev/vda1 /boot/efi
+grub-install --removable
+
+## configure (note the paths carefully)
+cat > /boot/grub/grub.cfg << "EOF"
+# Begin /boot/grub/grub.cfg
+set default=0
+set timeout=5
+
+insmod part_gpt
+insmod ext2
+set root=(hd0,1)
+
+insmod efi_gop
+
+menuentry "GNU/Linux, Linux 6.17.3-lfs-arm64" {
+        linux   /boot/vmlinuz-6.17.3-lfs-arm64 root=/dev/vda1 ro
+}
+EOF
+
+# ensure you copy the kernel across (you will likely need it for qemu command line)
+scp -P 2222 nano@localhost:/mnt/lfs/boot/vmlinuz-6.17.3-lfs-arm64 .
+
+##### DONE! shutdown the build-host ####
+# take one more overlay
+qemu-img create -f qcow2 -b lfs-target-phase5.qcow2 -F qcow2 lfs-target-boot.qcow2
+QDRIVE="-drive file=lfs-target-boot.qcow2,if=virtio,format=qcow2"
+# startup is modestly different - no vars UEFI (this is the EFI partition that mutates) and we supply the stock BIOS UEFI (readonly)
+qemu-system-aarch64   -M virt -accel hvf -cpu host -smp 4 -m 8192 $QDRIVE -kernel boot/vmlinuz-6.17.3-lfs-arm64 -append "console=/dev/ttyAMA root=/dev/vda1"  -device qemu-xhci -device usb-kbd -device usb-tablet -netdev user,id=n0,hostfwd=tcp::2222-:22 -device virtio-net-pci,netdev=n0 -bios edk2-aarch64-code.fd -nographic -serial mon:stdio
+
+## You are hoping to see:
+INIT: Entering runlevel: 3
+## if you see this line, boot has completed and the system is ready - however, you can't talk to it, 
+# so now, we need to do some surgery using the previous qemu boot-up withing the build-host 
+# (and this lfs-target-boot.qcow2 image as the second device again)
+# you will need to kill the qemu process - note we added "-serial mon:stdio", this enables
+# the qemu monitor, use Ctrl-a then c to enter the qemu monitor (alternatively you could start with graphics)
+# then "system_powerdown" and "quit" and you'll be back outside the VM
+
+# the final phase is to get this running with a terminal and then set up networking
 

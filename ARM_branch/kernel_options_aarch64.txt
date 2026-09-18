@@ -7,10 +7,17 @@ CONFIG_HW_RANDOM_VIRTIO=y
 # Needs the SCSI stack, which also covers AHCI/USB disks.
 CONFIG_SCSI=y
 CONFIG_BLK_DEV_SD=y
-CONFIG_SCSI_VIRTIO=y
+CONFIG_SCSI_VIRTIO=y  # Look for this one in particular, under Device Drivers -> SCSI device support -> SCSI low-level drivers
 
 # virtio-serial console (hvc0) — handy second channel
 CONFIG_VIRTIO_CONSOLE=y
+
+# device input
+CONFIG_VIRTIO_INPUT=y
+
+# graphics and virtio graphics (optional, under Device Drivers -> Graphics support)
+CONFIG_DRM=y
+CONFIG_DRM_VIRTIO_GPU=y
 
 # MMIO transport — PCI is the default on q35 and virt, but some virt configs use MMIO
 CONFIG_VIRTIO_MMIO=y
@@ -24,12 +31,20 @@ CONFIG_NLS_ISO8859_1=y
 # DHCP in the guest (QEMU -netdev user) needs raw packet sockets.
 CONFIG_PACKET=y
 
+# plan9 support (optional - just one more way to mount filesystems across qemu)
+CONFIG_9P_FS=y
+CONFIG_9P_FS_POSIX_ACL=y
+CONFIG_9P_FS_SECURITY=y
+CONFIG_NETWORK_FILESYSTEMS=y
+CONFIG_NET_9P=y
+CONFIG_NET_9P_VIRTIO=y
+
 ##### aarch64-specific
 
 # THE aarch64 gotcha. The virt board has no VGA text console — its UART is a
 # PL011 at ttyAMA0. Miss this and you get a black screen with a running kernel.
 # Pair with console=ttyAMA0 on the cmdline.
-CONFIG_SERIAL_AMBA_PL011=y      # console support comes in automatically (SERIAL_CORE_CONSOLE)
+CONFIG_SERIAL_AMBA_PL011=y
 
 # Power/reset on virt is PSCI, and the clock is a PL031. Without PSCI, `reboot`
 # and `poweroff` don't actually stop the VM; without PL031 systemd has no RTC.
@@ -41,3 +56,12 @@ CONFIG_RTC_DRV_PL031=y
 CONFIG_ARM_GIC=y
 CONFIG_ARM_GIC_V3=y
 CONFIG_ARM_ARCH_TIMER=y
+
+# Needed for plan9 support
+CONFIG_PCI=y
+CONFIG_PCI_HOST_COMMON=y
+CONFIG_PCI_HOST_GENERIC=y
+CONFIG_VIRTIO_PCI=y
+CONFIG_VIRTIO_BLK=y
+CONFIG_VIRTIO_NET=y
+

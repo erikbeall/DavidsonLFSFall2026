@@ -7,10 +7,17 @@ CONFIG_HW_RANDOM_VIRTIO=y
 # Needs the SCSI stack, which also covers AHCI/USB disks.
 CONFIG_SCSI=y
 CONFIG_BLK_DEV_SD=y
-CONFIG_SCSI_VIRTIO=y
+CONFIG_SCSI_VIRTIO=y  # Look for this one in particular, under Device Drivers -> SCSI device support -> SCSI low-level drivers
 
 # virtio-serial console (hvc0) — handy second channel
 CONFIG_VIRTIO_CONSOLE=y
+
+# device input
+CONFIG_VIRTIO_INPUT=y
+
+# graphics and virtio graphics (optional, under Device Drivers -> Graphics support)
+CONFIG_DRM=y
+CONFIG_DRM_VIRTIO_GPU=y
 
 # MMIO transport — PCI is the default on q35 and virt, but some virt configs use MMIO
 CONFIG_VIRTIO_MMIO=y
@@ -23,6 +30,17 @@ CONFIG_NLS_ISO8859_1=y
 
 # DHCP in the guest (QEMU -netdev user) needs raw packet sockets.
 CONFIG_PACKET=y
+
+# plan9 support (optional - just one more way to mount filesystems across qemu)
+CONFIG_9P_FS=y
+CONFIG_9P_FS_POSIX_ACL=y
+CONFIG_9P_FS_SECURITY=y
+CONFIG_NETWORK_FILESYSTEMS=y
+CONFIG_NET_9P=y
+CONFIG_NET_9P_VIRTIO=y
+
+# systemd-specific
+# DEVTMPFS + DEVTMPFS_MOUNT, CGROUPS, INOTIFY_USER, SIGNALFD/TIMERFD/EPOLL, FHANDLE, SECCOMP, TMPFS_POSIX_ACL/TMPFS_XATTR, AUTOFS_FS
 
 ######## x86-specific
 
