@@ -269,6 +269,7 @@ sudo ln -s /bin/dash /bin/sh
 
 # shutdown and make a new overlay
 qemu-img create -f qcow2 -b lfs-target-phase2.qcow2 -F qcow2 lfs-target-phase3.qcow2
+chmod -w lfs-target-phase2.qcow2
 QDRIVE2="-drive file=lfs-target-phase3.qcow2,if=virtio,format=qcow2"
 
 # boot with the new overlays

@@ -259,6 +259,8 @@ chroot "$LFS" /usr/bin/env -i   \
 # note, the build-host is identical past phase0 (phase0 is setup of lfs dir and user prep)
 qemu-img create -f qcow2 -b lfs-target-phase3.qcow2 -F qcow2 lfs-target-phase4.qcow2
 qemu-img create -f qcow2 -b build-host-phase1.qcow2 -F qcow2 build-host-phase4.qcow2
+chmod -w lfs-target-phase3.qcow2
+chmod -w build-host-phase1.qcow2
 
 # NOTE: any changes in the previous layer (e.g. build-host.qcow2) DO NOT get propagated properly, and could lead to conflicts
 # so, alternatively, flatten an overlay (and the base+previous overlay images linked by reference in the header) to a distributable single file

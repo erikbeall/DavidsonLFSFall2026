@@ -1,0 +1,48 @@
+# systemd/glibc stall early waiting on the RNG;
+# virtio-rng fills the pool immediately and visibly speeds boot
+ONFIG_HW_RANDOM=y
+CONFIG_HW_RANDOM_VIRTIO=y
+
+# Alternate disk model: virtio-scsi (-device virtio-scsi-pci + scsi-hd).
+# Needs the SCSI stack, which also covers AHCI/USB disks.
+CONFIG_SCSI=y
+CONFIG_BLK_DEV_SD=y
+CONFIG_SCSI_VIRTIO=y
+
+# virtio-serial console (hvc0) — handy second channel
+CONFIG_VIRTIO_CONSOLE=y
+
+# MMIO transport — PCI is the default on q35 and virt, but some virt configs use MMIO
+CONFIG_VIRTIO_MMIO=y
+
+# FAT — needed to mount the EFI System Partition
+CONFIG_FAT_FS=y
+CONFIG_VFAT_FS=y
+CONFIG_NLS_CODEPAGE_437=y
+CONFIG_NLS_ISO8859_1=y
+
+# DHCP in the guest (QEMU -netdev user) needs raw packet sockets.
+CONFIG_PACKET=y
+
+######## x86-specific
+
+# Console: QEMU's default UART is a 16550 at ttyS0. Pair with console=ttyS0 on
+# the kernel cmdline (or -nographic won't show you anything).
+CONFIG_SERIAL_8250=y
+CONFIG_SERIAL_8250_CONSOLE=y
+
+# Non-virtio disk fallback: -hda/-cdrom on q35 is AHCI; on -M pc it's PIIX IDE.
+CONFIG_SATA_AHCI=y
+CONFIG_ATA_PIIX=y
+
+# Clean shutdown: `poweroff` on x86 goes through ACPI S5. Without ACPI the VM
+# hangs at "Power down."
+CONFIG_ACPI=y
+CONFIG_RTC_DRV_CMOS=y
+
+# KVM/cloud paravirt (kvmclock, async page faults). Harmless under WHPX/TCG,
+# valuable the moment they run the image on real KVM or a cloud host.
+CONFIG_HYPERVISOR_GUEST=y
+CONFIG_PARAVIRT=y
+CONFIG_KVM_GUEST=y
+

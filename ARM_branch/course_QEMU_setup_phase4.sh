@@ -1,8 +1,14 @@
 
+echo "THIS IS NOT A SHELL SCRIPT"
+echo "this is a "pseudo" shell script, a shell-like documentation you cannot directly run"
+echo "Reading this file shows copy-pasteable commands, intended for aiding progress but only if you are paying attention"
+exit 0
+
 # Chapter 8
 # phase 4 is performed on the host but in chroot, building the rest of the base system using the cross-compile tools
 # this is NOT detailed explicitly here, instead, refer to Chapter 8 of the online guide
 # most of the packages are indeed required but some are purely personal choices (systemd, tcl & expect)
+# MUST BE IN VM, REMAIN IN VM when the automated script completes - read its output but before shutting down, check the phase5 script preamble
 
 sudo su
 export LFS=/mnt/lfs

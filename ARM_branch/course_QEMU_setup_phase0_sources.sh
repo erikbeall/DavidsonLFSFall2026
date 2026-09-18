@@ -162,6 +162,9 @@ QDRIVE1="-drive file=build-host-phase1.qcow2,if=virtio,format=qcow2"
 # do same for lfs-target disk
 qemu-img create -f qcow2 -b lfs-target.qcow2 -F qcow2 lfs-target-phase1.qcow2
 QDRIVE2="-drive file=lfs-target-phase1.qcow2,if=virtio,format=qcow2"
+# remove write permissions from the base image
+chmod -w lfs-target.qcow2
+chmod -w build-host-phase0.qcow2
 
 # boot with the new phase1 overlays
 qemu-system-aarch64   -M virt -accel hvf -cpu host -smp 4 -m 8192   $QEFI_RO  $QEFI_RW $QDRIVE1 $QDRIVE2  -device qemu-xhci -device usb-kbd -device usb-tablet -netdev user,id=n0,hostfwd=tcp::2222-:22   $QNODISP  -device virtio-net-pci,netdev=n0
